@@ -1,4 +1,4 @@
-// adminMatches.js - النسخة الكاملة بعد التعديلات (تبليغ لكل حكم)
+// adminMatches.js - النسخة النهائية مع تنسيق الوقت 12 ساعة
 import { supabase } from "../supabaseClient.js";
 import { requireAuth, logout } from "../auth.js";
 import {
@@ -15,7 +15,36 @@ let allTeams = [];
 let allSupervisors = [];
 let currentMatchId = null;
 
-// adminMatches.js - تحديث دالة init مع إضافة مستمعات الفلاتر
+// ✅ دالة مساعدة لتنسيق الوقت من 24 ساعة إلى 12 ساعة (عربي)
+function formatTime(timeString) {
+    if (!timeString) return '-';
+    
+    // إذا كان الوقت بالفعل بصيغة 12 ساعة (يحتوي على ص/م)
+    if (timeString.includes('ص') || timeString.includes('م')) {
+        return timeString;
+    }
+    
+    try {
+        // استخراج الساعات والدقائق
+        let parts = timeString.split(':');
+        let hours = parseInt(parts[0]);
+        let minutes = parts[1];
+        
+        // تحديد ص أو م
+        let ampm = hours >= 12 ? 'م' : 'ص';
+        
+        // تحويل إلى 12 ساعة
+        if (hours > 12) {
+            hours = hours - 12;
+        } else if (hours === 0) {
+            hours = 12;
+        }
+        
+        return `${hours}.${minutes} ${ampm}`;
+    } catch (e) {
+        return timeString;
+    }
+}
 
 // Initialize
 async function init() {
@@ -200,7 +229,7 @@ async function loadMatches() {
                 var_referee:referees!matches_var_referee_id_fkey(full_name, id),
                 avar_referee:referees!matches_avar_referee_id_fkey(full_name, id),
                 supervisor:supervisors!matches_supervisor_id_fkey(full_name, id)
-            `,
+            `
       )
       .order("match_date", { ascending: false });
 
@@ -226,11 +255,8 @@ function populateCompetitionDropdowns() {
   const select = document.getElementById("matchCompetition");
   select.innerHTML = '<option value="">اختر المسابقة</option>';
   allCompetitions.forEach((comp) => {
-    select.innerHTML += `<option value="${comp.id}">${comp.name}</option>`;
-  });
+    select.innerHTML += `<option value="${comp.id}">${comp.name}</option>`;  });
 }
-
-// adminMatches.js - تحديث دالة getRefereesByRole
 
 function getRefereesByRole(role, excludeRefereeId = null) {
   let filtered = allReferees.filter((ref) => {
@@ -244,35 +270,31 @@ function getRefereesByRole(role, excludeRefereeId = null) {
     case "main":
       return filtered.filter(
         (ref) =>
-          ref.job === "referee" || ref.job === "both" || ref.degree === "New",
+          ref.job === "referee" || ref.job === "both" || ref.degree === "New"
       );
     case "assistant":
       return filtered.filter(
         (ref) =>
-          ref.job === "assistant" || ref.job === "both" || ref.degree === "New",
+          ref.job === "assistant" || ref.job === "both" || ref.degree === "New"
       );
     case "var":
-      // ✅ فقط الحكام الذين لديهم صلاحية VAR
       return filtered.filter(
         (ref) =>
           ref.has_var_license === true &&
-          (ref.job === "referee" || ref.job === "both" || ref.degree === "New"),
+          (ref.job === "referee" || ref.job === "both" || ref.degree === "New")
       );
     case "avar":
-      // ✅ فقط الحكام الذين لديهم صلاحية AVAR
       return filtered.filter(
         (ref) =>
           ref.has_avar_license === true &&
-          (ref.job === "referee" || ref.job === "both" || ref.degree === "New"),
+          (ref.job === "referee" || ref.job === "both" || ref.degree === "New")
       );
     default:
       return filtered;
   }
 }
 
-// Populate referee dropdowns with filtering
 function populateRefereeDropdowns(excludeRefereeId = null) {
-  // الحكم الرئيسي
   const mainSelect = document.getElementById("mainReferee");
   const mainReferees = getRefereesByRole("main", excludeRefereeId);
   mainSelect.innerHTML = '<option value="">اختر الحكم الرئيسي</option>';
@@ -282,7 +304,6 @@ function populateRefereeDropdowns(excludeRefereeId = null) {
     mainSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
-  // الحكم الرابع
   const fourthSelect = document.getElementById("fourthReferee");
   const fourthReferees = getRefereesByRole("main", excludeRefereeId);
   fourthSelect.innerHTML = '<option value="">اختر الحكم الرابع</option>';
@@ -292,7 +313,6 @@ function populateRefereeDropdowns(excludeRefereeId = null) {
     fourthSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
-  // مساعد أول
   const assistant1Select = document.getElementById("assistant1");
   const assistantReferees = getRefereesByRole("assistant", excludeRefereeId);
   assistant1Select.innerHTML = '<option value="">اختر مساعد أول</option>';
@@ -302,7 +322,6 @@ function populateRefereeDropdowns(excludeRefereeId = null) {
     assistant1Select.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
-  // مساعد ثاني
   const assistant2Select = document.getElementById("assistant2");
   const assistantReferees2 = getRefereesByRole("assistant", excludeRefereeId);
   assistant2Select.innerHTML = '<option value="">اختر مساعد ثاني</option>';
@@ -312,7 +331,6 @@ function populateRefereeDropdowns(excludeRefereeId = null) {
     assistant2Select.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
-  // ✅ VAR - فقط الحاصلين على رخصة VAR
   const varSelect = document.getElementById("varReferee");
   const varReferees = getRefereesByRole("var", excludeRefereeId);
   varSelect.innerHTML = '<option value="">اختر حكم VAR</option>';
@@ -322,7 +340,6 @@ function populateRefereeDropdowns(excludeRefereeId = null) {
     varSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
-  // ✅ AVAR - فقط الحاصلين على رخصة AVAR
   const avarSelect = document.getElementById("avarReferee");
   const avarReferees = getRefereesByRole("avar", excludeRefereeId);
   avarSelect.innerHTML = '<option value="">اختر حكم AVAR</option>';
@@ -333,14 +350,13 @@ function populateRefereeDropdowns(excludeRefereeId = null) {
   });
 }
 
-// تعبئة قوائم الحكام مع استبعاد الحكام المختارين
 function populateRefereeDropdownsWithExclusions(
   mainId,
   fourthId,
   asst1Id,
   asst2Id,
   varId,
-  avarId,
+  avarId
 ) {
   const excludedIds = [
     mainId,
@@ -351,11 +367,10 @@ function populateRefereeDropdownsWithExclusions(
     avarId,
   ].filter((id) => id);
 
-  // الحكم الرئيسي
   const mainSelect = document.getElementById("mainReferee");
   let mainReferees = getRefereesByRole("main");
   mainReferees = mainReferees.filter(
-    (ref) => !excludedIds.includes(ref.id) || ref.id === mainId,
+    (ref) => !excludedIds.includes(ref.id) || ref.id === mainId
   );
   mainSelect.innerHTML = '<option value="">اختر الحكم الرئيسي</option>';
   mainReferees.forEach((ref) => {
@@ -364,11 +379,10 @@ function populateRefereeDropdownsWithExclusions(
     mainSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
-  // الحكم الرابع
   const fourthSelect = document.getElementById("fourthReferee");
   let fourthReferees = getRefereesByRole("main");
   fourthReferees = fourthReferees.filter(
-    (ref) => !excludedIds.includes(ref.id) || ref.id === fourthId,
+    (ref) => !excludedIds.includes(ref.id) || ref.id === fourthId
   );
   fourthSelect.innerHTML = '<option value="">اختر الحكم الرابع</option>';
   fourthReferees.forEach((ref) => {
@@ -377,11 +391,10 @@ function populateRefereeDropdownsWithExclusions(
     fourthSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
-  // مساعد أول
   const assistant1Select = document.getElementById("assistant1");
   let assistantReferees = getRefereesByRole("assistant");
   assistantReferees = assistantReferees.filter(
-    (ref) => !excludedIds.includes(ref.id) || ref.id === asst1Id,
+    (ref) => !excludedIds.includes(ref.id) || ref.id === asst1Id
   );
   assistant1Select.innerHTML = '<option value="">اختر مساعد أول</option>';
   assistantReferees.forEach((ref) => {
@@ -390,11 +403,10 @@ function populateRefereeDropdownsWithExclusions(
     assistant1Select.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
-  // مساعد ثاني
   const assistant2Select = document.getElementById("assistant2");
   let assistantReferees2 = getRefereesByRole("assistant");
   assistantReferees2 = assistantReferees2.filter(
-    (ref) => !excludedIds.includes(ref.id) || ref.id === asst2Id,
+    (ref) => !excludedIds.includes(ref.id) || ref.id === asst2Id
   );
   assistant2Select.innerHTML = '<option value="">اختر مساعد ثاني</option>';
   assistantReferees2.forEach((ref) => {
@@ -403,11 +415,10 @@ function populateRefereeDropdownsWithExclusions(
     assistant2Select.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
-  // ✅ VAR - استبعاد الحكام المختارين
   const varSelect = document.getElementById("varReferee");
   let varReferees = getRefereesByRole("var");
   varReferees = varReferees.filter(
-    (ref) => !excludedIds.includes(ref.id) || ref.id === varId,
+    (ref) => !excludedIds.includes(ref.id) || ref.id === varId
   );
   varSelect.innerHTML = '<option value="">اختر حكم VAR</option>';
   varReferees.forEach((ref) => {
@@ -416,11 +427,10 @@ function populateRefereeDropdownsWithExclusions(
     varSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
-  // ✅ AVAR - استبعاد الحكام المختارين
   const avarSelect = document.getElementById("avarReferee");
   let avarReferees = getRefereesByRole("avar");
   avarReferees = avarReferees.filter(
-    (ref) => !excludedIds.includes(ref.id) || ref.id === avarId,
+    (ref) => !excludedIds.includes(ref.id) || ref.id === avarId
   );
   avarSelect.innerHTML = '<option value="">اختر حكم AVAR</option>';
   avarReferees.forEach((ref) => {
@@ -430,7 +440,6 @@ function populateRefereeDropdownsWithExclusions(
   });
 }
 
-// تعبئة قائمة المراقبين
 function populateSupervisorDropdowns() {
   const select = document.getElementById("supervisorReferee");
   if (!select) return;
@@ -449,7 +458,6 @@ function populateCompetitionFilter() {
   });
 }
 
-// التحقق من المسابقة وعرض VAR/AVAR
 function checkAndToggleVar(competitionId) {
   const comp = allCompetitions.find((c) => c.id === competitionId);
   const isPremierLeague = comp?.name === "الدوري المصري الممتاز";
@@ -465,7 +473,6 @@ function checkAndToggleVar(competitionId) {
   }
 }
 
-// Update team dropdowns based on competition
 function updateTeamDropdowns() {
   const competitionId = document.getElementById("matchCompetition").value;
   const homeSelect = document.getElementById("homeTeam");
@@ -477,7 +484,7 @@ function updateTeamDropdowns() {
   if (!competitionId) return;
 
   const teams = allTeams.filter(
-    (team) => team.competition_id === competitionId,
+    (team) => team.competition_id === competitionId
   );
   teams.forEach((team) => {
     homeSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
@@ -485,7 +492,9 @@ function updateTeamDropdowns() {
   });
 }
 
-// adminMatches.js - تحديث دالة renderMatches
+// ============================================
+// ✅ renderMatches مع تنسيق الوقت
+// ============================================
 
 function renderMatches(matches) {
   const tbody = document.getElementById("matchesBody");
@@ -513,7 +522,6 @@ function renderMatches(matches) {
     const avarRef = match.avar_referee?.full_name || "-";
     const supervisor = match.supervisor?.full_name || "-";
 
-    // ✅ دالة مساعدة لإنشاء زر التبليغ (مصغر)
     const notifyButton = (refereeRole, isNotified) => {
       const icon = isNotified ? "fa-check" : "fa-bell";
       const btnClass = isNotified ? "btn-success" : "btn-outline-secondary";
@@ -528,7 +536,6 @@ function renderMatches(matches) {
             `;
     };
 
-    // ✅ دالة مساعدة لعرض اسم الحكم (مختصر)
     const refName = (name) => {
       if (name === "-" || name === "غير معين") return name;
       return name.length > 14 ? name.substring(0, 12) + "…" : name;
@@ -536,41 +543,36 @@ function renderMatches(matches) {
 
     tr.innerHTML = `
             <td>${new Date(match.match_date).toLocaleDateString("ar-EG")}</td>
-            <td>${match.match_time}</td>
+            <td>${formatTime(match.match_time)}</td>
             <td>${match.stadium}</td>
             <td><strong>${match.home_team?.name || "-"}</strong></td>
             <td><strong>${match.away_team?.name || "-"}</strong></td>
             <td>
                 <div class="referee-badges">
-                    <!-- الحكم الرئيسي -->
                     <span class="badge bg-primary" title="رئيسي">
                         <i class="fa fa-flag-checkered role-icon"></i>
                         <span class="referee-name">${refName(mainRef)}</span>
                         ${notifyButton("main", match.main_referee_notified)}
                     </span>
                     
-                    <!-- مساعد 1 -->
                     <span class="badge bg-success" title="مساعد 1">
                         <i class="fas fa-flag role-icon"></i>
                         <span class="referee-name">${refName(asst1)}</span>
                         ${notifyButton("assistant1", match.assistant1_notified)}
                     </span>
                     
-                    <!-- مساعد 2 -->
                     <span class="badge bg-success" title="مساعد 2">
                         <i class="fas fa-flag role-icon"></i>
                         <span class="referee-name">${refName(asst2)}</span>
                         ${notifyButton("assistant2", match.assistant2_notified)}
                     </span>
                     
-                    <!-- الحكم الرابع -->
                     <span class="badge bg-warning" title="رابع">
                         <i class="fas fa-clipboard role-icon"></i>
                         <span class="referee-name">${refName(fourthRef)}</span>
                         ${notifyButton("fourth", match.fourth_referee_notified)}
                     </span>
                     
-                    <!-- VAR -->
                     ${
                       varRef !== "-"
                         ? `
@@ -583,7 +585,6 @@ function renderMatches(matches) {
                         : ""
                     }
                     
-                    <!-- AVAR -->
                     ${
                       avarRef !== "-"
                         ? `
@@ -596,7 +597,6 @@ function renderMatches(matches) {
                         : ""
                     }
                     
-                    <!-- المراقب -->
                     ${
                       supervisor !== "-"
                         ? `
@@ -640,7 +640,6 @@ function renderMatches(matches) {
     tbody.appendChild(tr);
   });
 
-  // Event listeners
   document.querySelectorAll(".view-match").forEach((btn) => {
     btn.addEventListener("click", () => viewMatchDetails(btn.dataset.id));
   });
@@ -657,7 +656,6 @@ function renderMatches(matches) {
     btn.addEventListener("click", () => deleteMatch(btn.dataset.id));
   });
 
-  // ✅ إضافة مستمعين لأزرار التبليغ لكل حكم
   document.querySelectorAll(".btn-notify").forEach((btn) => {
     btn.addEventListener("click", function (e) {
       e.stopPropagation();
@@ -669,11 +667,11 @@ function renderMatches(matches) {
 }
 
 // ============================================
-// ✅ تبليغ حكم معين في المباراة
+// ✅ باقي الدوال (بدون تغيير)
 // ============================================
+
 async function toggleRefereeNotification(matchId, refereeRole) {
   try {
-    // تحديد العمود المطلوب تحديثه
     const columnMap = {
       main: "main_referee_notified",
       fourth: "fourth_referee_notified",
@@ -689,7 +687,6 @@ async function toggleRefereeNotification(matchId, refereeRole) {
       return;
     }
 
-    // جلب القيمة الحالية
     const { data: currentMatch, error: fetchError } = await supabase
       .from("matches")
       .select(column)
@@ -700,7 +697,6 @@ async function toggleRefereeNotification(matchId, refereeRole) {
 
     const currentValue = currentMatch[column] || false;
 
-    // تحديث القيمة
     const { error: updateError } = await supabase
       .from("matches")
       .update({ [column]: !currentValue })
@@ -708,7 +704,6 @@ async function toggleRefereeNotification(matchId, refereeRole) {
 
     if (updateError) throw updateError;
 
-    // جلب اسم الحكم
     const { data: matchData, error: matchError } = await supabase
       .from("matches")
       .select(
@@ -719,7 +714,7 @@ async function toggleRefereeNotification(matchId, refereeRole) {
                 assistant2:referees!matches_assistant2_referee_id_fkey(full_name),
                 var_referee:referees!matches_var_referee_id_fkey(full_name),
                 avar_referee:referees!matches_avar_referee_id_fkey(full_name)
-            `,
+            `
       )
       .eq("id", matchId)
       .single();
@@ -768,9 +763,6 @@ async function toggleRefereeNotification(matchId, refereeRole) {
   }
 }
 
-// ============================================
-// ✅ تبليغ جميع حكام المباراة
-// ============================================
 async function notifyAllReferees(matchId) {
   try {
     const result = await Swal.fire({
@@ -819,7 +811,6 @@ async function notifyAllReferees(matchId) {
     });
   }
 }
-// adminMatches.js - دالة الفلترة والترتيب
 
 function filterMatches() {
   const competition = document.getElementById("filterCompetition")?.value;
@@ -830,17 +821,14 @@ function filterMatches() {
 
   let filtered = [...allMatches];
 
-  // فلترة حسب المسابقة
   if (competition) {
     filtered = filtered.filter((match) => match.competition_id === competition);
   }
 
-  // فلترة حسب التاريخ
   if (date) {
     filtered = filtered.filter((match) => match.match_date === date);
   }
 
-  // فلترة حسب الحالة (قادمة/منتهية)
   if (status) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -852,14 +840,12 @@ function filterMatches() {
     });
   }
 
-  // ✅ فلترة حسب حالة التبليغ
   if (notified === "notified") {
     filtered = filtered.filter((match) => match.is_notified === true);
   } else if (notified === "not_notified") {
     filtered = filtered.filter((match) => match.is_notified === false);
   }
 
-  // ✅ ترتيب النتائج حسب الاختيار
   switch (sort) {
     case "newest":
       filtered.sort((a, b) => new Date(b.match_date) - new Date(a.match_date));
@@ -890,10 +876,6 @@ function filterMatches() {
   renderMatches(filtered);
 }
 
-// ============================================
-// ✅ تحديث دالة populateRefereeDropdowns - إضافة معلومات الحكم
-// ============================================
-
 function getRefereeDisplayText(referee) {
   const degreeNames = {
     "1st": "درجة أولى",
@@ -905,12 +887,10 @@ function getRefereeDisplayText(referee) {
 
   let label = referee.full_name;
 
-  // إضافة الدرجة
   if (referee.degree) {
     label += ` (${degreeNames[referee.degree] || referee.degree})`;
   }
 
-  // إضافة حالة الإيقاف
   if (referee.is_suspended) {
     label += " 🚫 موقوف";
   }
@@ -918,20 +898,15 @@ function getRefereeDisplayText(referee) {
   return label;
 }
 
-// ============================================
-// ✅ دالة للتحقق من توفر الحكم (إيقاف + تعارض)
-// ============================================
-
 async function checkRefereeAvailabilityForDropdown(
   refereeId,
   matchDate,
   matchTime,
-  excludeMatchId = null,
+  excludeMatchId = null
 ) {
   if (!refereeId) return { available: true, reason: "" };
 
   try {
-    // 1. التحقق من الإيقاف
     const { data: referee, error: refError } = await supabase
       .from("referees")
       .select("is_suspended, suspension_until, full_name")
@@ -959,15 +934,14 @@ async function checkRefereeAvailabilityForDropdown(
       };
     }
 
-    // 2. التحقق من تعارض المباريات
     let query = supabase
       .from("matches")
       .select(
-        "id, match_date, match_time, main_referee_id, fourth_referee_id, assistant1_referee_id, assistant2_referee_id, var_referee_id, avar_referee_id",
+        "id, match_date, match_time, main_referee_id, fourth_referee_id, assistant1_referee_id, assistant2_referee_id, var_referee_id, avar_referee_id"
       )
       .eq("match_date", matchDate)
       .or(
-        `main_referee_id.eq.${refereeId},fourth_referee_id.eq.${refereeId},assistant1_referee_id.eq.${refereeId},assistant2_referee_id.eq.${refereeId},var_referee_id.eq.${refereeId},avar_referee_id.eq.${refereeId}`,
+        `main_referee_id.eq.${refereeId},fourth_referee_id.eq.${refereeId},assistant1_referee_id.eq.${refereeId},assistant2_referee_id.eq.${refereeId},var_referee_id.eq.${refereeId},avar_referee_id.eq.${refereeId}`
       );
 
     if (excludeMatchId) {
@@ -979,18 +953,16 @@ async function checkRefereeAvailabilityForDropdown(
     if (confError) throw confError;
 
     if (conflicts && conflicts.length > 0) {
-      // التحقق من التوقيت (ساعتين)
       const matchDateTime = new Date(`${matchDate}T${matchTime}`);
       for (const conflict of conflicts) {
         const conflictDateTime = new Date(
-          `${conflict.match_date}T${conflict.match_time}`,
+          `${conflict.match_date}T${conflict.match_time}`
         );
         const diffMinutes = Math.abs(
-          (matchDateTime - conflictDateTime) / (1000 * 60),
+          (matchDateTime - conflictDateTime) / (1000 * 60)
         );
 
         if (diffMinutes < 120) {
-          // أقل من ساعتين
           return {
             available: false,
             reason: `⚠️ مباراة أخرى في ${conflict.match_time} (باقي ${Math.round(diffMinutes)} دقيقة)`,
@@ -1007,17 +979,12 @@ async function checkRefereeAvailabilityForDropdown(
   }
 }
 
-// ============================================
-// ✅ تحديث دالة populateRefereeDropdowns - مع التحقق من التوفر
-// ============================================
-
 async function populateRefereeDropdownsWithAvailability(
   excludeRefereeId = null,
   matchDate = null,
   matchTime = null,
-  excludeMatchId = null,
+  excludeMatchId = null
 ) {
-  // الحكم الرئيسي
   const mainSelect = document.getElementById("mainReferee");
   const mainReferees = getRefereesByRole("main", excludeRefereeId);
   mainSelect.innerHTML = '<option value="">اختر الحكم الرئيسي</option>';
@@ -1028,13 +995,12 @@ async function populateRefereeDropdownsWithAvailability(
     let extraClass = "";
     let extraText = "";
 
-    // التحقق من التوفر إذا كان هناك تاريخ ووقت
     if (matchDate && matchTime) {
       const availability = await checkRefereeAvailabilityForDropdown(
         ref.id,
         matchDate,
         matchTime,
-        excludeMatchId,
+        excludeMatchId
       );
       if (!availability.available) {
         disabled = true;
@@ -1050,7 +1016,6 @@ async function populateRefereeDropdownsWithAvailability(
         `;
   }
 
-  // الحكم الرابع - نفس المنطق
   const fourthSelect = document.getElementById("fourthReferee");
   const fourthReferees = getRefereesByRole("main", excludeRefereeId);
   fourthSelect.innerHTML = '<option value="">اختر الحكم الرابع</option>';
@@ -1066,7 +1031,7 @@ async function populateRefereeDropdownsWithAvailability(
         ref.id,
         matchDate,
         matchTime,
-        excludeMatchId,
+        excludeMatchId
       );
       if (!availability.available) {
         disabled = true;
@@ -1082,7 +1047,6 @@ async function populateRefereeDropdownsWithAvailability(
         `;
   }
 
-  // مساعد أول - نفس المنطق
   const assistant1Select = document.getElementById("assistant1");
   const assistantReferees = getRefereesByRole("assistant", excludeRefereeId);
   assistant1Select.innerHTML = '<option value="">اختر مساعد أول</option>';
@@ -1098,7 +1062,7 @@ async function populateRefereeDropdownsWithAvailability(
         ref.id,
         matchDate,
         matchTime,
-        excludeMatchId,
+        excludeMatchId
       );
       if (!availability.available) {
         disabled = true;
@@ -1114,7 +1078,6 @@ async function populateRefereeDropdownsWithAvailability(
         `;
   }
 
-  // مساعد ثاني - نفس المنطق
   const assistant2Select = document.getElementById("assistant2");
   const assistantReferees2 = getRefereesByRole("assistant", excludeRefereeId);
   assistant2Select.innerHTML = '<option value="">اختر مساعد ثاني</option>';
@@ -1130,7 +1093,7 @@ async function populateRefereeDropdownsWithAvailability(
         ref.id,
         matchDate,
         matchTime,
-        excludeMatchId,
+        excludeMatchId
       );
       if (!availability.available) {
         disabled = true;
@@ -1146,7 +1109,6 @@ async function populateRefereeDropdownsWithAvailability(
         `;
   }
 
-  // VAR - فقط المتاحين
   const varSelect = document.getElementById("varReferee");
   const varReferees = getRefereesByRole("var", excludeRefereeId);
   varSelect.innerHTML = '<option value="">اختر حكم VAR</option>';
@@ -1162,7 +1124,7 @@ async function populateRefereeDropdownsWithAvailability(
         ref.id,
         matchDate,
         matchTime,
-        excludeMatchId,
+        excludeMatchId
       );
       if (!availability.available) {
         disabled = true;
@@ -1178,7 +1140,6 @@ async function populateRefereeDropdownsWithAvailability(
         `;
   }
 
-  // AVAR - فقط المتاحين
   const avarSelect = document.getElementById("avarReferee");
   const avarReferees = getRefereesByRole("avar", excludeRefereeId);
   avarSelect.innerHTML = '<option value="">اختر حكم AVAR</option>';
@@ -1194,7 +1155,7 @@ async function populateRefereeDropdownsWithAvailability(
         ref.id,
         matchDate,
         matchTime,
-        excludeMatchId,
+        excludeMatchId
       );
       if (!availability.available) {
         disabled = true;
@@ -1211,10 +1172,6 @@ async function populateRefereeDropdownsWithAvailability(
   }
 }
 
-// ============================================
-// ✅ تحديث دالة openAddMatchModal
-// ============================================
-
 function openAddMatchModal() {
   document.getElementById("matchModalTitle").textContent = "إضافة مباراة جديدة";
   document.getElementById("matchForm").reset();
@@ -1226,15 +1183,12 @@ function openAddMatchModal() {
   document.getElementById("avarContainer").style.display = "none";
 
   updateTeamDropdowns();
-
-  // تعبئة قوائم الحكام بدون تاريخ (كلهم متاحين)
   populateRefereeDropdownsWithAvailability();
   populateSupervisorDropdowns();
 
   const modal = new bootstrap.Modal(document.getElementById("matchModal"));
   modal.show();
 
-  // ✅ إضافة مستمع لتغيير التاريخ والوقت لتحديث قوائم الحكام
   document
     .getElementById("matchDate")
     .addEventListener("change", updateRefereeAvailability);
@@ -1242,10 +1196,6 @@ function openAddMatchModal() {
     .getElementById("matchTime")
     .addEventListener("change", updateRefereeAvailability);
 }
-
-// ============================================
-// ✅ دالة تحديث توفر الحكام عند تغيير التاريخ/الوقت
-// ============================================
 
 async function updateRefereeAvailability() {
   const matchDate = document.getElementById("matchDate").value;
@@ -1257,33 +1207,9 @@ async function updateRefereeAvailability() {
       null,
       matchDate,
       matchTime,
-      matchId,
+      matchId
     );
   }
-}
-
-// ============================================
-// Open/Edit Match Modals
-// ============================================
-
-function openAddMatchModal() {
-  document.getElementById("matchModalTitle").textContent = "إضافة مباراة جديدة";
-  document.getElementById("matchForm").reset();
-  document.getElementById("matchId").value = "";
-  document.getElementById("matchModal").dataset.mode = "add";
-
-  document.getElementById("isNotified").checked = false;
-
-  // إخفاء VAR/AVAR افتراضياً
-  document.getElementById("varContainer").style.display = "none";
-  document.getElementById("avarContainer").style.display = "none";
-
-  updateTeamDropdowns();
-  populateRefereeDropdowns();
-  populateSupervisorDropdowns();
-
-  const modal = new bootstrap.Modal(document.getElementById("matchModal"));
-  modal.show();
 }
 
 async function editMatch(id) {
@@ -1305,7 +1231,6 @@ async function editMatch(id) {
     document.getElementById("matchNotes").value = data.notes || "";
     document.getElementById("isNotified").checked = data.is_notified || false;
 
-    // ✅ التحقق من المسابقة لعرض VAR/AVAR
     checkAndToggleVar(data.competition_id);
 
     await updateTeamDropdowns();
@@ -1318,7 +1243,7 @@ async function editMatch(id) {
       data.assistant1_referee_id,
       data.assistant2_referee_id,
       data.var_referee_id,
-      data.avar_referee_id,
+      data.avar_referee_id
     );
 
     document.getElementById("mainReferee").value = data.main_referee_id || "";
@@ -1328,8 +1253,6 @@ async function editMatch(id) {
       data.assistant1_referee_id || "";
     document.getElementById("assistant2").value =
       data.assistant2_referee_id || "";
-
-    // ✅ تعيين قيم VAR و AVAR
     document.getElementById("varReferee").value = data.var_referee_id || "";
     document.getElementById("avarReferee").value = data.avar_referee_id || "";
     document.getElementById("supervisorReferee").value =
@@ -1351,9 +1274,6 @@ async function editMatch(id) {
   }
 }
 
-// ============================================
-// Save match
-// ============================================
 async function saveMatch() {
   try {
     const id = document.getElementById("matchId").value;
@@ -1369,7 +1289,6 @@ async function saveMatch() {
     const supervisorId =
       document.getElementById("supervisorReferee").value || null;
 
-    // التحقق من عدم تكرار الحكام
     const selectedReferees = [
       mainRefereeId,
       fourthRefereeId,
@@ -1408,7 +1327,6 @@ async function saveMatch() {
       is_notified: document.getElementById("isNotified").checked,
     };
 
-    // Validate required fields
     if (
       !matchData.competition_id ||
       !matchData.stadium ||
@@ -1426,7 +1344,6 @@ async function saveMatch() {
       return;
     }
 
-    // ✅ التحقق من تعارض التوقيت
     const allRefereeIds = [
       mainRefereeId,
       fourthRefereeId,
@@ -1442,7 +1359,7 @@ async function saveMatch() {
           refId,
           matchData.match_date,
           matchData.match_time,
-          id || null,
+          id || null
         );
 
         if (conflictResult.hasConflict) {
@@ -1468,7 +1385,6 @@ async function saveMatch() {
       }
     }
 
-    // Validate with business rules
     const validation = await validateMatchData({
       ...matchData,
       id: id || null,
@@ -1497,7 +1413,7 @@ async function saveMatch() {
     });
 
     const modal = bootstrap.Modal.getInstance(
-      document.getElementById("matchModal"),
+      document.getElementById("matchModal")
     );
     modal.hide();
 
@@ -1513,9 +1429,6 @@ async function saveMatch() {
   }
 }
 
-// ============================================
-// Delete match
-// ============================================
 async function deleteMatch(id) {
   const result = await Swal.fire({
     title: "حذف المباراة",
@@ -1555,11 +1468,6 @@ async function deleteMatch(id) {
   }
 }
 
-// ============================================
-// دوال الاعتذار عن المباريات
-// ============================================
-
-// فتح نموذج الاعتذار
 async function openExcuseModal(matchId) {
   try {
     const { data: match, error } = await supabase
@@ -1573,7 +1481,7 @@ async function openExcuseModal(matchId) {
                 assistant2:referees!matches_assistant2_referee_id_fkey(id, full_name),
                 var_referee:referees!matches_var_referee_id_fkey(id, full_name),
                 avar_referee:referees!matches_avar_referee_id_fkey(id, full_name)
-            `,
+            `
       )
       .eq("id", matchId)
       .single();
@@ -1655,7 +1563,6 @@ async function openExcuseModal(matchId) {
   }
 }
 
-// حفظ الاعتذار
 async function saveExcuse() {
   try {
     const matchId = document.getElementById("excuseMatchId").value;
@@ -1765,7 +1672,7 @@ async function saveExcuse() {
     });
 
     const modal = bootstrap.Modal.getInstance(
-      document.getElementById("excuseModal"),
+      document.getElementById("excuseModal")
     );
     modal.hide();
 
@@ -1781,9 +1688,6 @@ async function saveExcuse() {
   }
 }
 
-// ============================================
-// View match details
-// ============================================
 async function viewMatchDetails(id) {
   try {
     const match = allMatches.find((m) => m.id === id);
@@ -1795,7 +1699,7 @@ async function viewMatchDetails(id) {
         `
                 *,
                 referees!inner(full_name)
-            `,
+            `
       )
       .eq("match_id", id)
       .order("created_at", { ascending: false });
@@ -1808,7 +1712,7 @@ async function viewMatchDetails(id) {
         `
                 *,
                 referees!inner(full_name)
-            `,
+            `
       )
       .eq("match_id", id)
       .order("created_at", { ascending: false });
@@ -1823,7 +1727,7 @@ async function viewMatchDetails(id) {
                     <div class="info-grid">
                         <div><strong>المسابقة:</strong> ${match.competitions?.name || "-"}</div>
                         <div><strong>التاريخ:</strong> ${new Date(match.match_date).toLocaleDateString("ar-EG")}</div>
-                        <div><strong>الوقت:</strong> ${match.match_time}</div>
+                        <div><strong>الوقت:</strong> ${formatTime(match.match_time)}</div>
                         <div><strong>الملعب:</strong> ${match.stadium}</div>
                         <div><strong>المضيف:</strong> ${match.home_team?.name || "-"}</div>
                         <div><strong>الضيف:</strong> ${match.away_team?.name || "-"}</div>
@@ -1923,7 +1827,7 @@ async function viewMatchDetails(id) {
                                             <td>${new Date(item.excuse_date).toLocaleDateString("ar-EG")}</td>
                                             <td>${item.notes || "-"}</td>
                                         </tr>
-                                    `,
+                                    `
                                       )
                                       .join("")}
                                 </tbody>
@@ -1965,7 +1869,7 @@ async function viewMatchDetails(id) {
                                             </td>
                                             <td>${item.notes || "-"}</td>
                                         </tr>
-                                    `,
+                                    `
                                       )
                                       .join("")}
                                 </tbody>
@@ -1979,7 +1883,7 @@ async function viewMatchDetails(id) {
         `;
 
     const modal = new bootstrap.Modal(
-      document.getElementById("matchDetailsModal"),
+      document.getElementById("matchDetailsModal")
     );
     modal.show();
   } catch (error) {
@@ -1993,9 +1897,6 @@ async function viewMatchDetails(id) {
   }
 }
 
-// ============================================
-// Handle logout
-// ============================================
 async function handleLogout() {
   const result = await Swal.fire({
     title: "تسجيل الخروج",
@@ -2013,5 +1914,4 @@ async function handleLogout() {
   }
 }
 
-// Initialize
 document.addEventListener("DOMContentLoaded", init);

@@ -24,15 +24,12 @@ let unreadCount = 0;
 // ============================================
 async function initDashboard() {
   try {
-    // Check authentication
     const auth = await requireAuth(["admin"]);
     if (!auth) return;
 
-    // Set user name
     document.getElementById("adminName").textContent =
       auth.user.email || "أدمن";
 
-    // Set current date
     const now = new Date();
     document.getElementById("currentDate").textContent = now.toLocaleDateString(
       "ar-EG",
@@ -41,22 +38,19 @@ async function initDashboard() {
         year: "numeric",
         month: "long",
         day: "numeric",
-      },
+      }
     );
 
-    // Load data
     await loadDashboardData();
     await loadCharts();
     await loadRecentMatches();
-    await loadNotifications(); // تحميل الإشعارات
+    await loadNotifications();
     await loadNotificationAlerts();
 
-    // Setup logout
     document
       .getElementById("logoutBtn")
       .addEventListener("click", handleLogout);
 
-    // Sidebar toggle for mobile
     document.getElementById("sidebarToggle").addEventListener("click", () => {
       document.querySelector(".sidebar-wrapper").classList.toggle("show");
     });
@@ -74,26 +68,21 @@ async function initDashboard() {
 // ============================================
 // Load dashboard statistics
 // ============================================
-// ✅ استبدل `loadDashboardData()` بهذا
 async function loadDashboardData() {
   try {
-    // طلب واحد يجيب كل الإحصائيات
     const { data, error } = await supabase.from("referees").select("*");
 
     if (error) throw error;
 
-    // حساب الإحصائيات من البيانات نفسها
     const totalReferees = data?.length || 0;
     const activeReferees = data?.filter((r) => !r.is_suspended).length || 0;
     const suspendedReferees = data?.filter((r) => r.is_suspended).length || 0;
 
-    // تحديث الواجهة
     document.getElementById("totalReferees").textContent = totalReferees;
     document.getElementById("activeReferees").textContent = activeReferees;
     document.getElementById("suspendedReferees").textContent =
       suspendedReferees;
 
-    // جلب المباريات في طلب منفصل
     const now = new Date();
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
       .toISOString()
@@ -120,7 +109,6 @@ async function loadDashboardData() {
 // ============================================
 async function loadCharts() {
   try {
-    // Competition chart data
     const { data: competitions, error: compError } = await supabase
       .from("competitions")
       .select("id, name")
@@ -143,7 +131,6 @@ async function loadCharts() {
       competitionLabels.push(comp.name);
     }
 
-    // Create competition chart
     const ctx1 = document.getElementById("competitionChart");
     if (ctx1 && typeof Chart !== "undefined") {
       state.competitionChart = new Chart(ctx1, {
@@ -176,31 +163,20 @@ async function loadCharts() {
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            legend: {
-              display: false,
-            },
+            legend: { display: false },
           },
           scales: {
             y: {
               beginAtZero: true,
-              ticks: {
-                stepSize: 1,
-              },
+              ticks: { stepSize: 1 },
             },
           },
         },
       });
     }
 
-    // Referee degree chart
     const degrees = ["1st", "2nd", "3rd", "International", "New"];
-    const degreeLabels = [
-      "درجة أولى",
-      "درجة ثانية",
-      "درجة ثالثة",
-      "دولي",
-      "جدد",
-    ];
+    const degreeLabels = ["درجة أولى", "درجة ثانية", "درجة ثالثة", "دولي", "جدد"];
     const degreeData = [];
 
     for (const degree of degrees) {
@@ -222,13 +198,7 @@ async function loadCharts() {
           datasets: [
             {
               data: degreeData,
-              backgroundColor: [
-                "#00c853",
-                "#2196f3",
-                "#ff9800",
-                "#9c27b0",
-                "#f44336",
-              ],
+              backgroundColor: ["#00c853", "#2196f3", "#ff9800", "#9c27b0", "#f44336"],
               borderWidth: 2,
               borderColor: "#fff",
             },
@@ -263,16 +233,14 @@ async function loadRecentMatches() {
   try {
     const { data: matches, error } = await supabase
       .from("matches")
-      .select(
-        `
+      .select(`
         id,
         match_date,
         home_team_id,
         away_team_id,
         home_team:home_team_id(name),
         away_team:away_team_id(name)
-      `,
-      )
+      `)
       .order("match_date", { ascending: false })
       .limit(5);
 
@@ -308,10 +276,8 @@ async function loadRecentMatches() {
       const matchDate = new Date(match.match_date);
       const isPast = matchDate < new Date();
 
-      const homeTeamName =
-        match.home_team?.name || match.home_team_id || "غير محدد";
-      const awayTeamName =
-        match.away_team?.name || match.away_team_id || "غير محدد";
+      const homeTeamName = match.home_team?.name || match.home_team_id || "غير محدد";
+      const awayTeamName = match.away_team?.name || match.away_team_id || "غير محدد";
 
       tr.innerHTML = `
         <td>${matchDate.toLocaleDateString("ar-EG")}</td>
@@ -359,16 +325,13 @@ async function handleLogout() {
 }
 
 // ============================================
-// إشعارات الجرس - الدوال الرئيسية
+// إشعارات الجرس
 // ============================================
-
-// تحميل الإشعارات
 async function loadNotifications() {
   try {
     const today = new Date().toISOString().split("T")[0];
     notifications = [];
 
-    // 1. المباريات القادمة اليوم
     const { data: todayMatches, error: matchError } = await supabase
       .from("matches")
       .select("id, match_date, match_time, stadium, home_team_id, away_team_id")
@@ -412,7 +375,6 @@ async function loadNotifications() {
       }
     }
 
-    // 2. المباريات بدون حكام
     const { data: pendingMatches, error: pendingError } = await supabase
       .from("matches")
       .select("id")
@@ -434,7 +396,6 @@ async function loadNotifications() {
       });
     }
 
-    // 3. الحكام الموقوفين
     const { data: suspendedReferees, error: suspError } = await supabase
       .from("referees")
       .select("id")
@@ -455,7 +416,6 @@ async function loadNotifications() {
       });
     }
 
-    // 4. الأعذار الجديدة
     const { data: newExcuses, error: excError } = await supabase
       .from("referee_excuses")
       .select("id")
@@ -477,7 +437,6 @@ async function loadNotifications() {
       });
     }
 
-    // إذا لم توجد إشعارات
     if (notifications.length === 0) {
       notifications.push({
         id: "no_notifications",
@@ -492,7 +451,6 @@ async function loadNotifications() {
       });
     }
 
-    // تحديث العدد
     unreadCount = notifications.filter((n) => !n.read).length;
     updateNotificationBadge();
     renderNotifications();
@@ -501,7 +459,6 @@ async function loadNotifications() {
   }
 }
 
-// تحديث شارة الإشعارات
 function updateNotificationBadge() {
   const badge = document.getElementById("notificationCount");
   if (badge) {
@@ -510,15 +467,11 @@ function updateNotificationBadge() {
   }
 }
 
-// عرض الإشعارات في القائمة المنسدلة
 function renderNotifications() {
   const list = document.getElementById("notificationList");
   if (!list) return;
 
-  if (
-    notifications.length === 0 ||
-    (notifications.length === 1 && notifications[0].id === "no_notifications")
-  ) {
+  if (notifications.length === 0 || (notifications.length === 1 && notifications[0].id === "no_notifications")) {
     list.innerHTML = `
       <div class="notification-empty">
         <i class="fas fa-bell-slash"></i>
@@ -542,7 +495,7 @@ function renderNotifications() {
         <div class="time">${notif.time}</div>
       </div>
     </div>
-  `,
+  `
     )
     .join("");
 }
@@ -551,7 +504,6 @@ function renderNotifications() {
 // دوال الإشعارات العامة (Global)
 // ============================================
 
-// تبديل عرض الإشعارات
 window.toggleNotifications = function () {
   const dropdown = document.getElementById("notificationDropdown");
   if (dropdown) {
@@ -560,7 +512,6 @@ window.toggleNotifications = function () {
   }
 };
 
-// النقر على إشعار
 window.handleNotificationClick = function (notificationId) {
   try {
     const notif = notifications.find((n) => n.id === notificationId);
@@ -584,7 +535,6 @@ window.handleNotificationClick = function (notificationId) {
   }
 };
 
-// تحديد الكل كمقروء
 window.markAllAsRead = function () {
   notifications.forEach((n) => (n.read = true));
   unreadCount = 0;
@@ -592,7 +542,6 @@ window.markAllAsRead = function () {
   renderNotifications();
 };
 
-// إغلاق الإشعارات عند النقر خارجها
 document.addEventListener("click", function (event) {
   const dropdown = document.getElementById("notificationDropdown");
   const bell = document.getElementById("notificationBell");
@@ -604,10 +553,8 @@ document.addEventListener("click", function (event) {
   }
 });
 
-// adminDashboard.js - تحديث دوال تنبيهات التبليغ
-
 // ============================================
-// ✅ عرض تنبيهات التبليغ في Dashboard (كارد كامل)
+// ✅ تنبيهات التبليغ - النسخة المصححة
 // ============================================
 
 async function loadNotificationAlerts() {
@@ -615,90 +562,67 @@ async function loadNotificationAlerts() {
     const tbody = document.getElementById("notificationAlertsBody");
     const countBadge = document.getElementById("notificationAlertCount");
 
-    if (!tbody) return;
+    if (!tbody) {
+      console.warn("⚠️ notificationAlertsBody not found in HTML");
+      return;
+    }
 
     // عرض حالة التحميل
     tbody.innerHTML = `
-            <tr>
-                <td colspan="8" class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">جاري التحميل...</span>
-                    </div>
-                    <p class="mt-2 text-muted">جاري تحميل التنبيهات...</p>
-                </td>
-            </tr>
-        `;
+      <tr>
+        <td colspan="8" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">جاري التحميل...</span>
+          </div>
+          <p class="mt-2 text-muted">جاري تحميل التنبيهات...</p>
+        </td>
+      </tr>
+    `;
 
     // جلب المباريات القادمة مع الحكام
     const today = new Date().toISOString().split("T")[0];
     const { data: matches, error } = await supabase
       .from("matches")
-      .select(
-        `
-                *,
-                competitions!inner(name),
-                home_team:teams!matches_home_team_id_fkey(name),
-                away_team:teams!matches_away_team_id_fkey(name),
-                main_referee:referees!matches_main_referee_id_fkey(full_name, id),
-                fourth_referee:referees!matches_fourth_referee_id_fkey(full_name, id),
-                assistant1:referees!matches_assistant1_referee_id_fkey(full_name, id),
-                assistant2:referees!matches_assistant2_referee_id_fkey(full_name, id),
-                var_referee:referees!matches_var_referee_id_fkey(full_name, id),
-                avar_referee:referees!matches_avar_referee_id_fkey(full_name, id)
-            `,
-      )
+      .select(`
+        *,
+        competitions!inner(name),
+        home_team:teams!matches_home_team_id_fkey(name),
+        away_team:teams!matches_away_team_id_fkey(name),
+        main_referee:referees!matches_main_referee_id_fkey(full_name, id),
+        fourth_referee:referees!matches_fourth_referee_id_fkey(full_name, id),
+        assistant1:referees!matches_assistant1_referee_id_fkey(full_name, id),
+        assistant2:referees!matches_assistant2_referee_id_fkey(full_name, id),
+        var_referee:referees!matches_var_referee_id_fkey(full_name, id),
+        avar_referee:referees!matches_avar_referee_id_fkey(full_name, id)
+      `)
       .gte("match_date", today)
       .order("match_date", { ascending: true })
       .limit(20);
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error fetching matches:", error);
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" class="text-center py-4 text-danger">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            حدث خطأ في تحميل التنبيهات
+          </td>
+        </tr>
+      `;
+      return;
+    }
 
     // بناء قائمة الحكام غير المبلغين
     const notNotifiedList = [];
+
     matches?.forEach((match) => {
       const referees = [
-        {
-          id: match.main_referee_id,
-          name: match.main_referee?.full_name,
-          role: "رئيسي",
-          roleKey: "main",
-          notified: match.main_referee_notified,
-        },
-        {
-          id: match.fourth_referee_id,
-          name: match.fourth_referee?.full_name,
-          role: "رابع",
-          roleKey: "fourth",
-          notified: match.fourth_referee_notified,
-        },
-        {
-          id: match.assistant1_referee_id,
-          name: match.assistant1?.full_name,
-          role: "مساعد 1",
-          roleKey: "assistant1",
-          notified: match.assistant1_notified,
-        },
-        {
-          id: match.assistant2_referee_id,
-          name: match.assistant2?.full_name,
-          role: "مساعد 2",
-          roleKey: "assistant2",
-          notified: match.assistant2_notified,
-        },
-        {
-          id: match.var_referee_id,
-          name: match.var_referee?.full_name,
-          role: "VAR",
-          roleKey: "var",
-          notified: match.var_referee_notified,
-        },
-        {
-          id: match.avar_referee_id,
-          name: match.avar_referee?.full_name,
-          role: "AVAR",
-          roleKey: "avar",
-          notified: match.avar_referee_notified,
-        },
+        { id: match.main_referee_id, name: match.main_referee?.full_name, role: "رئيسي", roleKey: "main", notified: match.main_referee_notified },
+        { id: match.fourth_referee_id, name: match.fourth_referee?.full_name, role: "رابع", roleKey: "fourth", notified: match.fourth_referee_notified },
+        { id: match.assistant1_referee_id, name: match.assistant1?.full_name, role: "مساعد 1", roleKey: "assistant1", notified: match.assistant1_notified },
+        { id: match.assistant2_referee_id, name: match.assistant2?.full_name, role: "مساعد 2", roleKey: "assistant2", notified: match.assistant2_notified },
+        { id: match.var_referee_id, name: match.var_referee?.full_name, role: "VAR", roleKey: "var", notified: match.var_referee_notified },
+        { id: match.avar_referee_id, name: match.avar_referee?.full_name, role: "AVAR", roleKey: "avar", notified: match.avar_referee_notified },
       ];
 
       referees.forEach((ref) => {
@@ -723,56 +647,66 @@ async function loadNotificationAlerts() {
     // تحديث العدد
     if (countBadge) {
       countBadge.textContent = notNotifiedList.length;
-      countBadge.style.display =
-        notNotifiedList.length > 0 ? "inline-block" : "none";
+      countBadge.style.display = notNotifiedList.length > 0 ? "inline-block" : "none";
     }
 
     // عرض البيانات
     if (notNotifiedList.length === 0) {
       tbody.innerHTML = `
-                <tr>
-                    <td colspan="8" class="text-center py-4 text-muted">
-                        <i class="fas fa-check-circle fa-2x mb-2 d-block text-success"></i>
-                        جميع الحكام مبلغ عنهم ✅
-                    </td>
-                </tr>
-            `;
+        <tr>
+          <td colspan="8" class="text-center py-4 text-success">
+            <i class="fas fa-check-circle fa-2x mb-2 d-block"></i>
+            جميع الحكام مبلغ عنهم ✅
+          </td>
+        </tr>
+      `;
       return;
     }
 
-    tbody.innerHTML = notNotifiedList
-      .map(
-        (item) => `
-            <tr>
-                <td>
-                    <strong>${item.homeTeam}</strong>
-                    <span class="mx-1">🆚</span>
-                    <strong>${item.awayTeam}</strong>
-                    <br>
-                    <small class="text-muted">${item.stadium}</small>
-                </td>
-                <td>${new Date(item.matchDate).toLocaleDateString("ar-EG")}</td>
-                <td>${item.matchTime}</td>
-                <td><span class="badge bg-info">${item.competition}</span></td>
-                <td><strong>${item.refereeName}</strong></td>
-                <td><span class="badge ${item.role === "رئيسي" ? "bg-primary" : item.role === "VAR" || item.role === "AVAR" ? "bg-danger" : item.role === "رابع" ? "bg-warning" : "bg-success"}">${item.role}</span></td>
-                <td>
-                    <span class="badge bg-warning text-dark">
-                        <i class="fas fa-clock me-1"></i>غير مبلغ
-                    </span>
-                </td>
-                <td>
-                    <button class="btn btn-sm btn-success notify-referee" 
-                            data-match="${item.matchId}" 
-                            data-referee="${item.roleKey}"
-                            title="تبليغ هذا الحكم">
-                        <i class="fas fa-bell me-1"></i>تبليغ
-                    </button>
-                </td>
-            </tr>
-        `,
-      )
-      .join("");
+    // ✅ تنسيق الوقت
+    const formatTime = (time) => {
+      if (!time) return '-';
+      try {
+        const [hours, minutes] = time.split(':');
+        let h = parseInt(hours);
+        const ampm = h >= 12 ? 'م' : 'ص';
+        h = h % 12;
+        h = h ? h : 12;
+        return `${h}.${minutes} ${ampm}`;
+      } catch {
+        return time;
+      }
+    };
+
+    tbody.innerHTML = notNotifiedList.map((item) => `
+      <tr>
+        <td>
+          <strong>${item.homeTeam}</strong>
+          <span class="mx-1">🆚</span>
+          <strong>${item.awayTeam}</strong>
+          <br>
+          <small class="text-muted">${item.stadium}</small>
+        </td>
+        <td>${new Date(item.matchDate).toLocaleDateString("ar-EG")}</td>
+        <td>${formatTime(item.matchTime)}</td>
+        <td><span class="badge bg-info">${item.competition}</span></td>
+        <td><strong>${item.refereeName}</strong></td>
+        <td><span class="badge ${item.role === 'رئيسي' ? 'bg-primary' : item.role === 'VAR' || item.role === 'AVAR' ? 'bg-danger' : item.role === 'رابع' ? 'bg-warning' : 'bg-success'}">${item.role}</span></td>
+        <td>
+          <span class="badge bg-warning text-dark">
+            <i class="fas fa-clock me-1"></i>غير مبلغ
+          </span>
+        </td>
+        <td>
+          <button class="btn btn-sm btn-success notify-referee" 
+                  data-match="${item.matchId}" 
+                  data-referee="${item.roleKey}"
+                  title="تبليغ هذا الحكم">
+            <i class="fas fa-bell me-1"></i>تبليغ
+          </button>
+        </td>
+      </tr>
+    `).join("");
 
     // إضافة مستمعين لأزرار التبليغ
     document.querySelectorAll(".notify-referee").forEach((btn) => {
@@ -782,18 +716,19 @@ async function loadNotificationAlerts() {
         toggleRefereeNotificationFromDashboard(matchId, refereeRole);
       });
     });
+
   } catch (error) {
     console.error("Error loading notification alerts:", error);
     const tbody = document.getElementById("notificationAlertsBody");
     if (tbody) {
       tbody.innerHTML = `
-                <tr>
-                    <td colspan="8" class="text-center py-4 text-danger">
-                        <i class="fas fa-exclamation-circle me-2"></i>
-                        حدث خطأ في تحميل التنبيهات
-                    </td>
-                </tr>
-            `;
+        <tr>
+          <td colspan="8" class="text-center py-4 text-danger">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            حدث خطأ في تحميل التنبيهات: ${error.message}
+          </td>
+        </tr>
+      `;
     }
   }
 }
@@ -804,7 +739,6 @@ async function loadNotificationAlerts() {
 
 async function toggleRefereeNotificationFromDashboard(matchId, refereeRole) {
   try {
-    // عرض حالة التحميل
     Swal.fire({
       title: "جاري التبليغ...",
       text: "الرجاء الانتظار",
@@ -835,7 +769,6 @@ async function toggleRefereeNotificationFromDashboard(matchId, refereeRole) {
       return;
     }
 
-    // جلب القيمة الحالية
     const { data: currentMatch, error: fetchError } = await supabase
       .from("matches")
       .select(column)
@@ -846,7 +779,6 @@ async function toggleRefereeNotificationFromDashboard(matchId, refereeRole) {
 
     const currentValue = currentMatch[column] || false;
 
-    // تحديث القيمة
     const { error: updateError } = await supabase
       .from("matches")
       .update({ [column]: !currentValue })
@@ -854,10 +786,8 @@ async function toggleRefereeNotificationFromDashboard(matchId, refereeRole) {
 
     if (updateError) throw updateError;
 
-    // إغلاق الـ Swal
     Swal.close();
 
-    // تحديث الإشعارات
     await loadNotificationAlerts();
     await loadNotifications();
 
@@ -868,6 +798,7 @@ async function toggleRefereeNotificationFromDashboard(matchId, refereeRole) {
       timer: 1500,
       showConfirmButton: false,
     });
+
   } catch (error) {
     console.error("Error toggling referee notification:", error);
     Swal.close();
@@ -885,6 +816,11 @@ async function toggleRefereeNotificationFromDashboard(matchId, refereeRole) {
 // ============================================
 setInterval(() => {
   loadNotifications();
+}, 30000);
+
+// تحديث تنبيهات التبليغ كل 30 ثانية
+setInterval(() => {
+  loadNotificationAlerts();
 }, 30000);
 
 // ============================================

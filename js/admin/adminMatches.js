@@ -132,7 +132,7 @@ async function init() {
     populateCompetitionFilter();
 
     // ✅ تعيين القيم الافتراضية للفلاتر
-    document.getElementById("filterSort").value = "newest";
+    document.getElementById("filterSort").value = "oldest";
     document.getElementById("filterNotified").value = "";
   } catch (error) {
     console.error("Init error:", error);
@@ -236,6 +236,8 @@ async function loadMatches() {
     if (error) throw error;
     allMatches = data || [];
     renderMatches(allMatches);
+        filterMatches();
+
   } catch (error) {
     console.error("Error loading matches:", error);
     Swal.fire({

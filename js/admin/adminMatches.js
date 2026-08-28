@@ -15,6 +15,8 @@ let allTeams = [];
 let allSupervisors = [];
 let currentMatchId = null;
 
+// adminMatches.js - تحديث دالة init مع إضافة مستمعات الفلاتر
+
 // Initialize
 async function init() {
   try {
@@ -37,19 +39,54 @@ async function init() {
     await loadSupervisors();
     await loadMatches();
 
+    // ============================================
+    // ✅ إضافة مستمعات الفلاتر والترتيب
+    // ============================================
+
+    // 1. مستمعات الفلاتر الأساسية
+    document
+      .getElementById("filterCompetition")
+      .addEventListener("change", filterMatches);
+
+    document
+      .getElementById("filterDate")
+      .addEventListener("change", filterMatches);
+
+    document
+      .getElementById("filterStatus")
+      .addEventListener("change", filterMatches);
+
+    // 2. ✅ مستمع ترتيب المباريات (أحدث/أقدم)
+    document
+      .getElementById("filterSort")
+      .addEventListener("change", filterMatches);
+
+    // 3. ✅ مستمع فلترة التبليغ (مبلغ/غير مبلغ)
+    document
+      .getElementById("filterNotified")
+      .addEventListener("change", filterMatches);
+
+    // ============================================
+    // باقي المستمعات
+    // ============================================
+
     // Setup event listeners
     document
       .getElementById("logoutBtn")
       .addEventListener("click", handleLogout);
+
     document.getElementById("sidebarToggle").addEventListener("click", () => {
       document.querySelector(".sidebar-wrapper").classList.toggle("show");
     });
+
     document
       .getElementById("addMatchBtn")
       .addEventListener("click", openAddMatchModal);
+
     document
       .getElementById("saveMatchBtn")
       .addEventListener("click", saveMatch);
+
     document
       .getElementById("matchCompetition")
       .addEventListener("change", function () {
@@ -62,19 +99,12 @@ async function init() {
       .getElementById("saveExcuseBtn")
       .addEventListener("click", saveExcuse);
 
-    // Filter events
-    document
-      .getElementById("filterCompetition")
-      .addEventListener("change", filterMatches);
-    document
-      .getElementById("filterDate")
-      .addEventListener("change", filterMatches);
-    document
-      .getElementById("filterStatus")
-      .addEventListener("change", filterMatches);
-
     // Populate filter competition dropdown
     populateCompetitionFilter();
+
+    // ✅ تعيين القيم الافتراضية للفلاتر
+    document.getElementById("filterSort").value = "newest";
+    document.getElementById("filterNotified").value = "";
   } catch (error) {
     console.error("Init error:", error);
     Swal.fire({
@@ -514,7 +544,7 @@ function renderMatches(matches) {
                 <div class="referee-badges">
                     <!-- الحكم الرئيسي -->
                     <span class="badge bg-primary" title="رئيسي">
-                        <i class="fas fa-whistle role-icon"></i>
+                        <i class="fa fa-flag-checkered role-icon"></i>
                         <span class="referee-name">${refName(mainRef)}</span>
                         ${notifyButton("main", match.main_referee_notified)}
                     </span>
@@ -789,28 +819,447 @@ async function notifyAllReferees(matchId) {
     });
   }
 }
+// adminMatches.js - دالة الفلترة والترتيب
 
-// Filter matches
 function filterMatches() {
-  const competition = document.getElementById("filterCompetition").value;
-  const date = document.getElementById("filterDate").value;
-  const status = document.getElementById("filterStatus").value;
+  const competition = document.getElementById("filterCompetition")?.value;
+  const date = document.getElementById("filterDate")?.value;
+  const status = document.getElementById("filterStatus")?.value;
+  const sort = document.getElementById("filterSort")?.value || "newest";
+  const notified = document.getElementById("filterNotified")?.value;
 
-  let filtered = allMatches.filter((match) => {
-    if (competition && match.competition_id !== competition) return false;
-    if (date && match.match_date !== date) return false;
+  let filtered = [...allMatches];
 
-    const matchDate = new Date(match.match_date);
+  // فلترة حسب المسابقة
+  if (competition) {
+    filtered = filtered.filter((match) => match.competition_id === competition);
+  }
+
+  // فلترة حسب التاريخ
+  if (date) {
+    filtered = filtered.filter((match) => match.match_date === date);
+  }
+
+  // فلترة حسب الحالة (قادمة/منتهية)
+  if (status) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    filtered = filtered.filter((match) => {
+      const matchDate = new Date(match.match_date);
+      if (status === "upcoming") return matchDate >= today;
+      if (status === "past") return matchDate < today;
+      return true;
+    });
+  }
 
-    if (status === "upcoming" && matchDate < today) return false;
-    if (status === "past" && matchDate >= today) return false;
+  // ✅ فلترة حسب حالة التبليغ
+  if (notified === "notified") {
+    filtered = filtered.filter((match) => match.is_notified === true);
+  } else if (notified === "not_notified") {
+    filtered = filtered.filter((match) => match.is_notified === false);
+  }
 
-    return true;
-  });
+  // ✅ ترتيب النتائج حسب الاختيار
+  switch (sort) {
+    case "newest":
+      filtered.sort((a, b) => new Date(b.match_date) - new Date(a.match_date));
+      break;
+    case "oldest":
+      filtered.sort((a, b) => new Date(a.match_date) - new Date(b.match_date));
+      break;
+    case "date_asc":
+      filtered.sort((a, b) => {
+        if (a.match_date === b.match_date) {
+          return a.match_time.localeCompare(b.match_time);
+        }
+        return a.match_date.localeCompare(b.match_date);
+      });
+      break;
+    case "date_desc":
+      filtered.sort((a, b) => {
+        if (a.match_date === b.match_date) {
+          return b.match_time.localeCompare(a.match_time);
+        }
+        return b.match_date.localeCompare(a.match_date);
+      });
+      break;
+    default:
+      filtered.sort((a, b) => new Date(b.match_date) - new Date(a.match_date));
+  }
 
   renderMatches(filtered);
+}
+
+// ============================================
+// ✅ تحديث دالة populateRefereeDropdowns - إضافة معلومات الحكم
+// ============================================
+
+function getRefereeDisplayText(referee) {
+  const degreeNames = {
+    "1st": "درجة أولى",
+    "2nd": "درجة ثانية",
+    "3rd": "درجة ثالثة",
+    International: "دولي",
+    New: "جديد",
+  };
+
+  let label = referee.full_name;
+
+  // إضافة الدرجة
+  if (referee.degree) {
+    label += ` (${degreeNames[referee.degree] || referee.degree})`;
+  }
+
+  // إضافة حالة الإيقاف
+  if (referee.is_suspended) {
+    label += " 🚫 موقوف";
+  }
+
+  return label;
+}
+
+// ============================================
+// ✅ دالة للتحقق من توفر الحكم (إيقاف + تعارض)
+// ============================================
+
+async function checkRefereeAvailabilityForDropdown(
+  refereeId,
+  matchDate,
+  matchTime,
+  excludeMatchId = null,
+) {
+  if (!refereeId) return { available: true, reason: "" };
+
+  try {
+    // 1. التحقق من الإيقاف
+    const { data: referee, error: refError } = await supabase
+      .from("referees")
+      .select("is_suspended, suspension_until, full_name")
+      .eq("id", refereeId)
+      .single();
+
+    if (refError) throw refError;
+
+    if (referee.is_suspended) {
+      return {
+        available: false,
+        reason: `🚫 موقوف`,
+        fullName: referee.full_name,
+      };
+    }
+
+    if (
+      referee.suspension_until &&
+      new Date(referee.suspension_until) >= new Date(matchDate)
+    ) {
+      return {
+        available: false,
+        reason: `🚫 موقوف حتى ${new Date(referee.suspension_until).toLocaleDateString("ar-EG")}`,
+        fullName: referee.full_name,
+      };
+    }
+
+    // 2. التحقق من تعارض المباريات
+    let query = supabase
+      .from("matches")
+      .select(
+        "id, match_date, match_time, main_referee_id, fourth_referee_id, assistant1_referee_id, assistant2_referee_id, var_referee_id, avar_referee_id",
+      )
+      .eq("match_date", matchDate)
+      .or(
+        `main_referee_id.eq.${refereeId},fourth_referee_id.eq.${refereeId},assistant1_referee_id.eq.${refereeId},assistant2_referee_id.eq.${refereeId},var_referee_id.eq.${refereeId},avar_referee_id.eq.${refereeId}`,
+      );
+
+    if (excludeMatchId) {
+      query = query.neq("id", excludeMatchId);
+    }
+
+    const { data: conflicts, error: confError } = await query;
+
+    if (confError) throw confError;
+
+    if (conflicts && conflicts.length > 0) {
+      // التحقق من التوقيت (ساعتين)
+      const matchDateTime = new Date(`${matchDate}T${matchTime}`);
+      for (const conflict of conflicts) {
+        const conflictDateTime = new Date(
+          `${conflict.match_date}T${conflict.match_time}`,
+        );
+        const diffMinutes = Math.abs(
+          (matchDateTime - conflictDateTime) / (1000 * 60),
+        );
+
+        if (diffMinutes < 120) {
+          // أقل من ساعتين
+          return {
+            available: false,
+            reason: `⚠️ مباراة أخرى في ${conflict.match_time} (باقي ${Math.round(diffMinutes)} دقيقة)`,
+            fullName: referee.full_name,
+          };
+        }
+      }
+    }
+
+    return { available: true, reason: "" };
+  } catch (error) {
+    console.error("Error checking referee availability:", error);
+    return { available: true, reason: "" };
+  }
+}
+
+// ============================================
+// ✅ تحديث دالة populateRefereeDropdowns - مع التحقق من التوفر
+// ============================================
+
+async function populateRefereeDropdownsWithAvailability(
+  excludeRefereeId = null,
+  matchDate = null,
+  matchTime = null,
+  excludeMatchId = null,
+) {
+  // الحكم الرئيسي
+  const mainSelect = document.getElementById("mainReferee");
+  const mainReferees = getRefereesByRole("main", excludeRefereeId);
+  mainSelect.innerHTML = '<option value="">اختر الحكم الرئيسي</option>';
+
+  for (const ref of mainReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    // التحقق من التوفر إذا كان هناك تاريخ ووقت
+    if (matchDate && matchTime) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` - ${availability.reason}`;
+      }
+    }
+
+    mainSelect.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // الحكم الرابع - نفس المنطق
+  const fourthSelect = document.getElementById("fourthReferee");
+  const fourthReferees = getRefereesByRole("main", excludeRefereeId);
+  fourthSelect.innerHTML = '<option value="">اختر الحكم الرابع</option>';
+
+  for (const ref of fourthReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (matchDate && matchTime) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` - ${availability.reason}`;
+      }
+    }
+
+    fourthSelect.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // مساعد أول - نفس المنطق
+  const assistant1Select = document.getElementById("assistant1");
+  const assistantReferees = getRefereesByRole("assistant", excludeRefereeId);
+  assistant1Select.innerHTML = '<option value="">اختر مساعد أول</option>';
+
+  for (const ref of assistantReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (matchDate && matchTime) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` - ${availability.reason}`;
+      }
+    }
+
+    assistant1Select.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // مساعد ثاني - نفس المنطق
+  const assistant2Select = document.getElementById("assistant2");
+  const assistantReferees2 = getRefereesByRole("assistant", excludeRefereeId);
+  assistant2Select.innerHTML = '<option value="">اختر مساعد ثاني</option>';
+
+  for (const ref of assistantReferees2) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (matchDate && matchTime) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` - ${availability.reason}`;
+      }
+    }
+
+    assistant2Select.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // VAR - فقط المتاحين
+  const varSelect = document.getElementById("varReferee");
+  const varReferees = getRefereesByRole("var", excludeRefereeId);
+  varSelect.innerHTML = '<option value="">اختر حكم VAR</option>';
+
+  for (const ref of varReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (matchDate && matchTime) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` - ${availability.reason}`;
+      }
+    }
+
+    varSelect.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // AVAR - فقط المتاحين
+  const avarSelect = document.getElementById("avarReferee");
+  const avarReferees = getRefereesByRole("avar", excludeRefereeId);
+  avarSelect.innerHTML = '<option value="">اختر حكم AVAR</option>';
+
+  for (const ref of avarReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (matchDate && matchTime) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` - ${availability.reason}`;
+      }
+    }
+
+    avarSelect.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+}
+
+// ============================================
+// ✅ تحديث دالة openAddMatchModal
+// ============================================
+
+function openAddMatchModal() {
+  document.getElementById("matchModalTitle").textContent = "إضافة مباراة جديدة";
+  document.getElementById("matchForm").reset();
+  document.getElementById("matchId").value = "";
+  document.getElementById("matchModal").dataset.mode = "add";
+  document.getElementById("isNotified").checked = false;
+
+  document.getElementById("varContainer").style.display = "none";
+  document.getElementById("avarContainer").style.display = "none";
+
+  updateTeamDropdowns();
+
+  // تعبئة قوائم الحكام بدون تاريخ (كلهم متاحين)
+  populateRefereeDropdownsWithAvailability();
+  populateSupervisorDropdowns();
+
+  const modal = new bootstrap.Modal(document.getElementById("matchModal"));
+  modal.show();
+
+  // ✅ إضافة مستمع لتغيير التاريخ والوقت لتحديث قوائم الحكام
+  document
+    .getElementById("matchDate")
+    .addEventListener("change", updateRefereeAvailability);
+  document
+    .getElementById("matchTime")
+    .addEventListener("change", updateRefereeAvailability);
+}
+
+// ============================================
+// ✅ دالة تحديث توفر الحكام عند تغيير التاريخ/الوقت
+// ============================================
+
+async function updateRefereeAvailability() {
+  const matchDate = document.getElementById("matchDate").value;
+  const matchTime = document.getElementById("matchTime").value;
+  const matchId = document.getElementById("matchId").value || null;
+
+  if (matchDate && matchTime) {
+    await populateRefereeDropdownsWithAvailability(
+      null,
+      matchDate,
+      matchTime,
+      matchId,
+    );
+  }
 }
 
 // ============================================

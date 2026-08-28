@@ -105,25 +105,42 @@
       <!-- Content -->
       <div class="content-wrapper">
         <!-- Filters & Actions -->
+        <!-- في admin-matches.html - تحديث قسم الفلاتر -->
+
         <div class="glass-card mb-4">
           <div class="card-body">
             <div class="row g-3">
-              <div class="col-md-3">
+              <div class="col-md-2">
                 <select class="form-select" id="filterCompetition">
                   <option value="">جميع المسابقات</option>
                 </select>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-2">
                 <input type="date" class="form-control" id="filterDate" />
               </div>
-              <div class="col-md-3">
+              <div class="col-md-2">
                 <select class="form-select" id="filterStatus">
                   <option value="">جميع المباريات</option>
                   <option value="upcoming">قادمة</option>
                   <option value="past">منتهية</option>
                 </select>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-2">
+                <select class="form-select" id="filterSort">
+                  <option value="newest">الأحدث أولاً</option>
+                  <option value="oldest">الأقدم أولاً</option>
+                  <option value="date_asc">التاريخ (تصاعدي)</option>
+                  <option value="date_desc">التاريخ (تنازلي)</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <select class="form-select" id="filterNotified">
+                  <option value="">جميع الحالات</option>
+                  <option value="notified">مبلغ عنه</option>
+                  <option value="not_notified">غير مبلغ</option>
+                </select>
+              </div>
+              <div class="col-md-2">
                 <button class="btn btn-primary w-100" id="addMatchBtn">
                   <i class="fas fa-plus me-2"></i>إضافة مباراة
                 </button>

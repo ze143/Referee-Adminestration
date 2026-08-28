@@ -2459,3 +2459,70 @@ body {
     min-width: 8px;
   }
 }
+
+/* custom-sports-theme.css - تحسين عرض خيارات الحكام */
+
+/* ✅ تنسيق الخيارات في قوائم الحكام */
+.referee-option {
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.referee-option:hover {
+    background: rgba(0, 200, 83, 0.1);
+}
+
+.referee-option.text-danger {
+    color: #dc3545 !important;
+}
+
+.referee-option.opacity-50 {
+    opacity: 0.5;
+}
+
+.referee-option .degree-badge {
+    font-size: 0.6rem;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: rgba(0, 200, 83, 0.15);
+    color: #00c853;
+    margin-right: 4px;
+}
+
+.referee-option .suspended-badge {
+    font-size: 0.6rem;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: rgba(220, 53, 69, 0.15);
+    color: #dc3545;
+    margin-right: 4px;
+}
+
+.referee-option .conflict-badge {
+    font-size: 0.6rem;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: rgba(255, 152, 0, 0.15);
+    color: #ff9800;
+    margin-right: 4px;
+}
+
+/* ✅ تحسين عرض الفلاتر */
+.filter-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.filter-group .form-select,
+.filter-group .form-control {
+    min-width: 120px;
+}
+
+@media (max-width: 768px) {
+    .filter-group .form-select,
+    .filter-group .form-control {
+        min-width: 100%;
+    }
+}

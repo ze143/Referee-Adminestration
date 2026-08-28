@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>الحكام - المنسق - لجنة الحكام الرئيسية - التطوير</title>
+
+    <!-- Bootstrap 5.3 RTL -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Font Awesome 6 -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Custom Sports Theme -->
+    <link href="../assets/css/custom-sports-theme.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- Sidebar -->
+    <div class="sidebar-wrapper">
+      <div class="sidebar">
+        <div class="sidebar-brand">
+          <i class="fas fa-futbol"></i>
+          <span>لجنة الحكام</span>
+        </div>
+        <div class="sidebar-user">
+          <div class="avatar">
+            <i class="fas fa-user-edit"></i>
+          </div>
+          <div class="user-info">
+            <span class="user-name" id="editorName">منسق</span>
+            <span class="user-role">منسق مشروط</span>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="editor-dashboard.html" class="nav-item">
+            <i class="fas fa-chart-pie"></i>
+            <span>لوحة التحكم</span>
+          </a>
+          <a href="editor-matches.html" class="nav-item">
+            <i class="fas fa-calendar-check"></i>
+            <span>المباريات والتعيينات</span>
+          </a>
+          <a href="editor-referees.html" class="nav-item active">
+            <i class="fa fa-flag-checkered"></i>
+            <span>الحكام (عرض فقط)</span>
+          </a>
+          <a href="editor-reports.html" class="nav-item">
+            <i class="fas fa-file-alt"></i>
+            <span>التقارير (عرض فقط)</span>
+          </a>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="logoutBtn" class="btn btn-danger w-100">
+            <i class="fas fa-sign-out-alt me-2"></i>تسجيل الخروج
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Top Navbar -->
+      <nav class="top-navbar">
+        <div class="container-fluid">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <button
+                class="sidebar-toggle btn btn-link d-lg-none"
+                id="sidebarToggle"
+              >
+                <i class="fas fa-bars"></i>
+              </button>
+              <h4 class="page-title mb-0">الحكام - عرض فقط</h4>
+            </div>
+            <div class="top-nav-right">
+              <div class="date-display" id="currentDate"></div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Content -->
+      <div class="content-wrapper">
+        <!-- Read-only Notice -->
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+          <i class="fas fa-info-circle me-2"></i>
+          هذه الصفحة للعرض فقط. يمكنك <strong>عرض تفاصيل</strong> الحكام
+          والأعذار وسجل الإيقافات.
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="alert"
+          ></button>
+        </div>
+
+        <!-- Filters -->
+        <div class="glass-card mb-4">
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <input
+                  type="text"
+                  class="form-control"
+                  id="searchReferee"
+                  placeholder="بحث عن حكم..."
+                />
+              </div>
+              <div class="col-md-4">
+                <select class="form-select" id="filterDegree">
+                  <option value="">جميع الدرجات</option>
+                  <option value="1st">درجة أولى</option>
+                  <option value="2nd">درجة ثانية</option>
+                  <option value="3rd">درجة ثالثة</option>
+                  <option value="International">دولي</option>
+                  <option value="New">جدد</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <select class="form-select" id="filterStatus">
+                  <option value="">جميع الحالات</option>
+                  <option value="active">نشط</option>
+                  <option value="suspended">موقوف</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Referees Table (Read-only) -->
+        <div class="glass-card">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0" id="refereesTable">
+                <thead>
+                  <tr>
+                    <th>الرقم القومي</th>
+                    <th>الاسم</th>
+                    <th>الدرجة</th>
+                    <th>الوظيفة</th>
+                    <th>رقم الهاتف</th>
+                    <th>الحالة</th>
+                    <th>الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="refereesBody">
+                  <!-- Dynamic content -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Referee Details Modal (Read-only) -->
+    <div class="modal fade" id="refereeDetailsModal" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">تفاصيل الحكم</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body" id="refereeDetailsContent">
+            <!-- Dynamic content -->
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              إغلاق
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="../js/editor/editorReferees.js"></script>
+  </body>
+</html>

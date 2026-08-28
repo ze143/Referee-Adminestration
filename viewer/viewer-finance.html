@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>المالية - رئيس اللجنة - لجنة الحكام الرئيسية - التطوير</title>
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link href="../assets/css/custom-sports-theme.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- Sidebar -->
+    <div class="sidebar-wrapper">
+      <div class="sidebar">
+        <div class="sidebar-brand">
+          <i class="fas fa-futbol"></i>
+          <span>لجنة الحكام</span>
+        </div>
+        <div class="sidebar-user">
+          <div class="avatar">
+            <i class="fas fa-user-tie"></i>
+          </div>
+          <div class="user-info">
+            <span class="user-name" id="viewerName">رئيس اللجنة</span>
+            <span class="user-role" id="userRoleDisplay">مشاهد</span>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="viewer-dashboard.html" class="nav-item">
+            <i class="fas fa-chart-pie"></i>
+            <span>لوحة التحكم</span>
+          </a>
+          <a href="viewer-matches.html" class="nav-item">
+            <i class="fas fa-calendar-check"></i>
+            <span>المباريات</span>
+          </a>
+          <a href="viewer-referees.html" class="nav-item">
+            <i class="fa fa-flag-checkered"></i>
+            <span>الحكام</span>
+          </a>
+          <a href="viewer-finance.html" class="nav-item active">
+            <i class="fas fa-coins"></i>
+            <span>المالية</span>
+          </a>
+          <a href="viewer-reports.html" class="nav-item">
+            <i class="fas fa-file-alt"></i>
+            <span>التقارير</span>
+          </a>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="logoutBtn" class="btn btn-danger w-100">
+            <i class="fas fa-sign-out-alt me-2"></i>تسجيل الخروج
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <nav class="top-navbar">
+        <div class="container-fluid">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <button
+                class="sidebar-toggle btn btn-link d-lg-none"
+                id="sidebarToggle"
+              >
+                <i class="fas fa-bars"></i>
+              </button>
+              <h4 class="page-title mb-0">المالية - عرض فقط</h4>
+            </div>
+            <div class="top-nav-right">
+              <div class="date-display" id="currentDate"></div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div class="content-wrapper">
+        <!-- Read-only Notice -->
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+          <i class="fas fa-info-circle me-2"></i>
+          هذه الصفحة للعرض فقط. يمكنك <strong>مشاهدة</strong> البيانات المالية
+          والتقارير.
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="alert"
+          ></button>
+        </div>
+
+        <!-- ✅ Financial Summary Cards -->
+        <div class="row g-4 mb-4">
+          <div class="col-md-3">
+            <div class="kpi-card gradient-green">
+              <div class="kpi-icon"><i class="fas fa-money-bill-wave"></i></div>
+              <div class="kpi-content">
+                <h3 class="kpi-value" id="totalFees">0</h3>
+                <p class="kpi-label">إجمالي المكافآت</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="kpi-card gradient-blue">
+              <div class="kpi-icon"><i class="fas fa-check-circle"></i></div>
+              <div class="kpi-content">
+                <h3 class="kpi-value" id="paidFees">0</h3>
+                <p class="kpi-label">مدفوع</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="kpi-card gradient-orange">
+              <div class="kpi-icon"><i class="fas fa-clock"></i></div>
+              <div class="kpi-content">
+                <h3 class="kpi-value" id="unpaidFees">0</h3>
+                <p class="kpi-label">غير مدفوع</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="kpi-card gradient-purple">
+              <div class="kpi-icon"><i class="fas fa-percent"></i></div>
+              <div class="kpi-content">
+                <h3 class="kpi-value" id="deductionTotal">0</h3>
+                <p class="kpi-label">إجمالي الخصومات (10%)</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ✅ Filters -->
+        <div class="glass-card mb-4">
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <select class="form-select" id="financeFilterReferee">
+                  <option value="">جميع الحكام</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <select class="form-select" id="financeFilterStatus">
+                  <option value="">جميع الحالات</option>
+                  <option value="paid">مدفوع</option>
+                  <option value="unpaid">غير مدفوع</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <button class="btn btn-success w-100" id="exportExcelBtn">
+                  <i class="fas fa-file-excel me-2"></i>تصدير Excel
+                </button>
+              </div>
+              <div class="col-md-2">
+                <button class="btn btn-danger w-100" id="exportPdfBtn">
+                  <i class="fas fa-file-pdf me-2"></i>تصدير PDF
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ✅ Finance Table -->
+        <div class="glass-card">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0" id="financeTable">
+                <thead>
+                  <tr>
+                    <th>اسم الحكم</th>
+                    <th>المسابقة</th>
+                    <th>عدد المباريات</th>
+                    <th>المكافأة الإجمالية</th>
+                    <th>الخصم (10%)</th>
+                    <th>الصافي</th>
+                    <th>الحالة</th>
+                    <th>الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="financeBody">
+                  <!-- Dynamic content -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="../js/viewer/viewerFinance.js"></script>
+  </body>
+</html>

@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>المباريات - المنسق - لجنة الحكام الرئيسية - التطوير</title>
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link href="../assets/css/custom-sports-theme.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- Sidebar -->
+    <div class="sidebar-wrapper">
+      <div class="sidebar">
+        <div class="sidebar-brand">
+          <i class="fas fa-futbol"></i>
+          <span>لجنة الحكام</span>
+        </div>
+        <div class="sidebar-user">
+          <div class="avatar">
+            <i class="fas fa-user-edit"></i>
+          </div>
+          <div class="user-info">
+            <span class="user-name" id="editorName">منسق</span>
+            <span class="user-role" id="userRoleDisplay">محرر مشروط</span>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="editor-dashboard.html" class="nav-item">
+            <i class="fas fa-chart-pie"></i>
+            <span>لوحة التحكم</span>
+          </a>
+          <a href="editor-matches.html" class="nav-item active">
+            <i class="fas fa-calendar-check"></i>
+            <span>المباريات والتعيينات</span>
+          </a>
+          <a href="editor-referees.html" class="nav-item">
+            <i class="fa fa-flag-checkered"></i>
+            <span>الحكام (عرض فقط)</span>
+          </a>
+          <a href="editor-reports.html" class="nav-item">
+            <i class="fas fa-file-alt"></i>
+            <span>التقارير (عرض فقط)</span>
+          </a>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="logoutBtn" class="btn btn-danger w-100">
+            <i class="fas fa-sign-out-alt me-2"></i>تسجيل الخروج
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <nav class="top-navbar">
+        <div class="container-fluid">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <button
+                class="sidebar-toggle btn btn-link d-lg-none"
+                id="sidebarToggle"
+              >
+                <i class="fas fa-bars"></i>
+              </button>
+              <h4 class="page-title mb-0">المباريات والتعيينات</h4>
+            </div>
+            <div class="top-nav-right">
+              <div class="date-display" id="currentDate"></div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div class="content-wrapper">
+        <!-- Scope Notice -->
+        <div
+          class="alert alert-info alert-dismissible fade show"
+          role="alert"
+          id="scopeAlert"
+        >
+          <i class="fas fa-info-circle me-2"></i>
+          <span id="scopeMessage"
+            >يمكنك تعيين <strong>المساعدين فقط</strong>. الحكم الرئيسي والرابع
+            وحالة التبليغ للقراءة فقط.</span
+          >
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="alert"
+          ></button>
+        </div>
+
+        <!-- Filters -->
+        <div class="glass-card mb-4">
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <select class="form-select" id="filterCompetition">
+                  <option value="">جميع المسابقات</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <input type="date" class="form-control" id="filterDate" />
+              </div>
+              <div class="col-md-4">
+                <select class="form-select" id="filterStatus">
+                  <option value="">جميع المباريات</option>
+                  <option value="pending">بحاجة مساعدين</option>
+                  <option value="complete">مكتملة</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Matches Table -->
+        <div class="glass-card">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0" id="matchesTable">
+                <thead>
+                  <tr>
+                    <th>التاريخ</th>
+                    <th>الوقت</th>
+                    <th>الملعب</th>
+                    <th>المضيف</th>
+                    <th>الضيف</th>
+                    <th>طاقم الحكام</th>
+                    <th>ملاحظات</th>
+                    <th>الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="matchesBody">
+                  <!-- Dynamic content -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Match Modal (Editor) -->
+    <div class="modal fade" id="editorMatchModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">تعيين طاقم الحكام</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="editorMatchForm">
+              <input type="hidden" id="editorMatchId" />
+
+              <!-- Read-only match info -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label">المسابقة</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="viewCompetition"
+                    disabled
+                  />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">الملعب</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="viewStadium"
+                    disabled
+                  />
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">التاريخ</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="viewDate"
+                    disabled
+                  />
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">الوقت</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="viewTime"
+                    disabled
+                  />
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">المضيف / الضيف</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="viewTeams"
+                    disabled
+                  />
+                </div>
+              </div>
+
+              <hr />
+
+              <!-- Main & Fourth Referees (Editable if full permission) -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label" id="mainRefereeLabel">
+                    الحكم الرئيسي <span class="text-danger">(قراءة فقط)</span>
+                  </label>
+                  <select class="form-select" id="editorMainReferee" disabled>
+                    <option value="">اختر الحكم الرئيسي</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" id="fourthRefereeLabel">
+                    الحكم الرابع <span class="text-danger">(قراءة فقط)</span>
+                  </label>
+                  <select class="form-select" id="editorFourthReferee" disabled>
+                    <option value="">اختر الحكم الرابع</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Assistant Referees (Editable) -->
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label"
+                    >مساعد أول
+                    <span class="text-success">(يمكنك تعيينه)</span></label
+                  >
+                  <select class="form-select" id="editorAssistant1">
+                    <option value="">اختر المساعد الأول</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label"
+                    >مساعد ثاني
+                    <span class="text-success">(يمكنك تعيينه)</span></label
+                  >
+                  <select class="form-select" id="editorAssistant2">
+                    <option value="">اختر المساعد الثاني</option>
+                  </select>
+                </div>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              id="saveEditorMatchBtn"
+            >
+              حفظ التعيينات
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Match Details Modal (Read-only) -->
+    <div class="modal fade" id="matchDetailsModal" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">تفاصيل المباراة</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body" id="matchDetailsContent">
+            <!-- Dynamic content -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="../js/editor/editorMatches.js"></script>
+  </body>
+</html>

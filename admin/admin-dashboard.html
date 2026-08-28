@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>لوحة تحكم الأدمن - لجنة الحكام الرئيسية - التطوير</title>
+
+    <!-- Bootstrap 5.3 RTL -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Font Awesome 6 -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Custom Sports Theme -->
+    <link href="../assets/css/custom-sports-theme.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- Sidebar -->
+    <div class="sidebar-wrapper">
+      <div class="sidebar">
+        <div class="sidebar-brand">
+          <i class="fas fa-futbol"></i>
+          <span>لجنة الحكام</span>
+        </div>
+        <div class="sidebar-user">
+          <div class="avatar">
+            <i class="fas fa-user-shield"></i>
+          </div>
+          <div class="user-info">
+            <span class="user-name" id="adminName">أدمن</span>
+            <span class="user-role">مدير النظام</span>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="admin-dashboard.html" class="nav-item active">
+            <i class="fas fa-chart-pie"></i>
+            <span>لوحة التحكم</span>
+          </a>
+          <a href="admin-supervisors.html" class="nav-item">
+            <i class="fa fa-eye"></i>
+            <span>إدارة المراقبين</span>
+          </a>
+          <a href="admin-referees.html" class="nav-item">
+            <i class="fa fa-flag-checkered"></i>
+            <span>إدارة الحكام</span>
+          </a>
+          <a href="admin-matches.html" class="nav-item">
+            <i class="fas fa-calendar-check"></i>
+            <span>المباريات والتعيينات</span>
+          </a>
+          <a href="admin-competitions.html" class="nav-item">
+            <i class="fas fa-trophy"></i>
+            <span>المسابقات والفرق</span>
+          </a>
+          <a href="admin-finance.html" class="nav-item">
+            <i class="fas fa-coins"></i>
+            <span>المالية</span>
+          </a>
+          <a href="admin-reports.html" class="nav-item">
+            <i class="fas fa-file-alt"></i>
+            <span>التقارير</span>
+          </a>
+          <a href="admin-users.html" class="nav-item">
+            <i class="fas fa-users-cog"></i>
+            <span>إدارة المستخدمين</span>
+          </a>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="logoutBtn" class="btn btn-danger w-100">
+            <i class="fas fa-sign-out-alt me-2"></i>تسجيل الخروج
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Top Navbar -->
+      <nav class="top-navbar">
+        <div class="container-fluid">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <button
+                class="sidebar-toggle btn btn-link d-lg-none"
+                id="sidebarToggle"
+              >
+                <i class="fas fa-bars"></i>
+              </button>
+              <h4 class="page-title mb-0">لوحة التحكم</h4>
+            </div>
+            <!-- في admin-dashboard.html - قسم الإشعارات -->
+            <div class="top-nav-right">
+              <div
+                class="notification-badge"
+                id="notificationBell"
+                onclick="toggleNotifications()"
+              >
+                <i class="fas fa-bell"></i>
+                <span class="badge" id="notificationCount">0</span>
+              </div>
+              <div class="date-display" id="currentDate"></div>
+            </div>
+
+            <!-- قائمة الإشعارات المنبثقة -->
+            <div
+              class="notification-dropdown"
+              id="notificationDropdown"
+              style="display: none"
+            >
+              <div class="notification-header">
+                <h6>الإشعارات</h6>
+                <button class="btn btn-sm btn-link" onclick="markAllAsRead()">
+                  تحديد الكل كمقروء
+                </button>
+              </div>
+              <div class="notification-list" id="notificationList">
+                <!-- سيتم تعبئتها بواسطة JavaScript -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Dashboard Content -->
+      <div class="content-wrapper">
+        <!-- KPI Cards -->
+        <div class="row g-4 mb-4">
+          <div class="col-xl-3 col-lg-6 col-md-6">
+            <div class="kpi-card gradient-green">
+              <div class="kpi-icon">
+                <i class="fa fa-flag-checkered"></i>
+              </div>
+              <div class="kpi-content">
+                <h3 class="kpi-value" id="totalReferees">0</h3>
+                <p class="kpi-label">إجمالي الحكام</p>
+              </div>
+              <div class="kpi-trend">
+                <i class="fas fa-arrow-up"></i>
+                <span>نشط</span>
+              </div>
+            </div>
+          </div>
+          <div class="col-xl-3 col-lg-6 col-md-6">
+            <div class="kpi-card gradient-blue">
+              <div class="kpi-icon">
+                <i class="fas fa-check-circle"></i>
+              </div>
+              <div class="kpi-content">
+                <h3 class="kpi-value" id="activeReferees">0</h3>
+                <p class="kpi-label">حكام نشطين</p>
+              </div>
+              <div class="kpi-trend">
+                <i class="fas fa-arrow-up text-success"></i>
+                <span>متاحون</span>
+              </div>
+            </div>
+          </div>
+          <div class="col-xl-3 col-lg-6 col-md-6">
+            <div class="kpi-card gradient-orange">
+              <div class="kpi-icon">
+                <i class="fas fa-ban"></i>
+              </div>
+              <div class="kpi-content">
+                <h3 class="kpi-value" id="suspendedReferees">0</h3>
+                <p class="kpi-label">حكام موقوفين</p>
+              </div>
+              <div class="kpi-trend">
+                <i class="fas fa-arrow-down text-danger"></i>
+                <span>معلقين</span>
+              </div>
+            </div>
+          </div>
+          <div class="col-xl-3 col-lg-6 col-md-6">
+            <div class="kpi-card gradient-purple">
+              <div class="kpi-icon">
+                <i class="fas fa-calendar-alt"></i>
+              </div>
+              <div class="kpi-content">
+                <h3 class="kpi-value" id="matchesThisMonth">0</h3>
+                <p class="kpi-label">مباريات الشهر</p>
+              </div>
+              <div class="kpi-trend">
+                <i class="fas fa-calendar-check"></i>
+                <span>هذا الشهر</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="row g-4 mb-4">
+          <div class="col-xl-8 col-lg-12">
+            <div class="chart-card glass-card">
+              <div class="card-header">
+                <h5>
+                  <i class="fas fa-chart-bar me-2"></i>توزيع المباريات حسب
+                  المسابقة
+                </h5>
+              </div>
+              <div class="card-body">
+                <canvas id="competitionChart" height="300"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="col-xl-4 col-lg-12">
+            <div class="chart-card glass-card">
+              <div class="card-header">
+                <h5>
+                  <i class="fas fa-chart-pie me-2"></i>توزيع الحكام حسب الدرجة
+                </h5>
+              </div>
+              <div class="card-body">
+                <canvas id="refereeDegreeChart" height="300"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- في admin-dashboard.html - استبدل قسم تنبيهات التبليغ -->
+
+        <!-- ✅ تنبيهات التبليغ - كارد كامل -->
+        <div class="glass-card mb-4">
+          <div
+            class="card-header d-flex justify-content-between align-items-center"
+          >
+            <div>
+              <h5><i class="fas fa-bell me-2"></i>تنبيهات التبليغ</h5>
+              <small class="text-muted"
+                >الحكام الذين لم يتم تبليغهم في المباريات القادمة</small
+              >
+            </div>
+            <span class="badge bg-danger" id="notificationAlertCount">0</span>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table
+                class="table table-hover mb-0"
+                id="notificationAlertsTable"
+              >
+                <thead>
+                  <tr>
+                    <th>المباراة</th>
+                    <th>التاريخ</th>
+                    <th>الوقت</th>
+                    <th>المسابقة</th>
+                    <th>الحكم</th>
+                    <th>الدور</th>
+                    <th>الحالة</th>
+                    <th>الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="notificationAlertsBody">
+                  <!-- سيتم تعبئتها -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Activity & Quick Actions -->
+        <div class="row g-4">
+          <div class="col-xl-6">
+            <div class="glass-card">
+              <div
+                class="card-header d-flex justify-content-between align-items-center"
+              >
+                <h5><i class="fas fa-clock me-2"></i>أحدث المباريات</h5>
+                <a
+                  href="admin-matches.html"
+                  class="btn btn-sm btn-outline-primary"
+                  >عرض الكل</a
+                >
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0" id="recentMatchesTable">
+                    <thead>
+                      <tr>
+                        <th>التاريخ</th>
+                        <th>المضيف</th>
+                        <th>الضيف</th>
+                        <th>الحالة</th>
+                      </tr>
+                    </thead>
+                    <tbody id="recentMatchesBody">
+                      <!-- Dynamic content -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-xl-6">
+            <div class="glass-card">
+              <div class="card-header">
+                <h5><i class="fas fa-tasks me-2"></i>إجراءات سريعة</h5>
+              </div>
+              <div class="card-body">
+                <div class="row g-3">
+                  <div class="col-6">
+                    <button
+                      class="quick-action-btn"
+                      onclick="window.location.href = 'admin-matches.html'"
+                    >
+                      <i class="fas fa-plus-circle"></i>
+                      <span>إضافة مباراة</span>
+                    </button>
+                  </div>
+                  <div class="col-6">
+                    <button
+                      class="quick-action-btn"
+                      onclick="window.location.href = 'admin-referees.html'"
+                    >
+                      <i class="fas fa-user-plus"></i>
+                      <span>إضافة حكم</span>
+                    </button>
+                  </div>
+                  <div class="col-6">
+                    <button
+                      class="quick-action-btn"
+                      onclick="window.location.href = 'admin-competitions.html'"
+                    >
+                      <i class="fas fa-trophy"></i>
+                      <span>إضافة مسابقة</span>
+                    </button>
+                  </div>
+                  <div class="col-6">
+                    <button
+                      class="quick-action-btn"
+                      onclick="window.location.href = 'admin-users.html'"
+                    >
+                      <i class="fas fa-user-cog"></i>
+                      <span>إدارة المستخدمين</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="../js/admin/adminDashboard.js"></script>
+  </body>
+</html>

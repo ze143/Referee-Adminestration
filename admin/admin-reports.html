@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>التقارير - لجنة الحكام الرئيسية - التطوير</title>
+
+    <!-- Bootstrap 5.3 RTL -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Font Awesome 6 -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- jsPDF for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- Custom Sports Theme -->
+    <link href="../assets/css/custom-sports-theme.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- Sidebar -->
+    <div class="sidebar-wrapper">
+      <div class="sidebar">
+        <div class="sidebar-brand">
+          <i class="fas fa-futbol"></i>
+          <span>لجنة الحكام</span>
+        </div>
+        <div class="sidebar-user">
+          <div class="avatar">
+            <i class="fas fa-user-shield"></i>
+          </div>
+          <div class="user-info">
+            <span class="user-name" id="adminName">أدمن</span>
+            <span class="user-role">مدير النظام</span>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="admin-dashboard.html" class="nav-item">
+            <i class="fas fa-chart-pie"></i>
+            <span>لوحة التحكم</span>
+          </a>
+          <a href="admin-supervisors.html" class="nav-item">
+            <i class="fa fa-eye"></i>
+            <span>إدارة المراقبين</span>
+          </a>
+          <a href="admin-referees.html" class="nav-item">
+            <i class="fa fa-flag-checkered"></i>
+            <span>إدارة الحكام</span>
+          </a>
+          <a href="admin-matches.html" class="nav-item">
+            <i class="fas fa-calendar-check"></i>
+            <span>المباريات والتعيينات</span>
+          </a>
+          <a href="admin-competitions.html" class="nav-item">
+            <i class="fas fa-trophy"></i>
+            <span>المسابقات والفرق</span>
+          </a>
+          <a href="admin-finance.html" class="nav-item">
+            <i class="fas fa-coins"></i>
+            <span>المالية</span>
+          </a>
+          <a href="admin-reports.html" class="nav-item active">
+            <i class="fas fa-file-alt"></i>
+            <span>التقارير</span>
+          </a>
+          <a href="admin-users.html" class="nav-item">
+            <i class="fas fa-users-cog"></i>
+            <span>إدارة المستخدمين</span>
+          </a>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="logoutBtn" class="btn btn-danger w-100">
+            <i class="fas fa-sign-out-alt me-2"></i>تسجيل الخروج
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Top Navbar -->
+      <nav class="top-navbar">
+        <div class="container-fluid">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <button
+                class="sidebar-toggle btn btn-link d-lg-none"
+                id="sidebarToggle"
+              >
+                <i class="fas fa-bars"></i>
+              </button>
+              <h4 class="page-title mb-0">التقارير</h4>
+            </div>
+            <div class="top-nav-right">
+              <div class="date-display" id="currentDate"></div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Content -->
+      <div class="content-wrapper">
+        <!-- Report Filters -->
+        <div class="glass-card mb-4">
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-3">
+                <select class="form-select" id="reportType">
+                  <option value="matches">تقارير المباريات</option>
+                  <option value="referees">تقارير الحكام</option>
+                  <option value="competitions">تقارير المسابقات</option>
+                  <option value="finance">تقارير مالية</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <input
+                  type="date"
+                  class="form-control"
+                  id="reportDateFrom"
+                  placeholder="من تاريخ"
+                />
+              </div>
+              <div class="col-md-3">
+                <input
+                  type="date"
+                  class="form-control"
+                  id="reportDateTo"
+                  placeholder="إلى تاريخ"
+                />
+              </div>
+              <div class="col-md-3">
+                <button class="btn btn-primary w-100" id="generateReportBtn">
+                  <i class="fas fa-chart-line me-2"></i>إنشاء التقرير
+                </button>
+              </div>
+            </div>
+            <div class="row g-3 mt-3">
+              <div class="col-md-12">
+                <div class="d-flex gap-2">
+                  <button class="btn btn-success" id="exportReportExcel">
+                    <i class="fas fa-file-excel me-2"></i>تصدير Excel
+                  </button>
+                  <button class="btn btn-danger" id="exportReportPdf">
+                    <i class="fas fa-file-pdf me-2"></i>تصدير PDF
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Report Results -->
+        <div class="glass-card">
+          <div class="card-header">
+            <h5><i class="fas fa-chart-bar me-2"></i>نتائج التقرير</h5>
+          </div>
+          <div class="card-body" id="reportContent">
+            <!-- Report charts and tables will be rendered here -->
+            <div class="text-center text-muted py-5">
+              <i class="fas fa-file-alt fa-3x mb-3"></i>
+              <p>اختر نوع التقرير والفترة الزمنية ثم اضغط "إنشاء التقرير"</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Referee Details Modal (reused) -->
+    <div class="modal fade" id="refereeDetailsModal" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">تفاصيل الحكم</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body" id="refereeDetailsContent">
+            <!-- Dynamic content -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="../js/admin/adminReports.js"></script>
+  </body>
+</html>

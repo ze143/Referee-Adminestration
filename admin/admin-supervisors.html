@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>إدارة المراقبين - لجنة الحكام الرئيسية - التطوير</title>
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link href="../assets/css/custom-sports-theme.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- Sidebar (نفس الهيكل) -->
+    <div class="sidebar-wrapper">
+      <div class="sidebar">
+        <div class="sidebar-brand">
+          <i class="fas fa-futbol"></i>
+          <span>لجنة الحكام</span>
+        </div>
+        <div class="sidebar-user">
+          <div class="avatar">
+            <i class="fas fa-user-shield"></i>
+          </div>
+          <div class="user-info">
+            <span class="user-name" id="adminName">أدمن</span>
+            <span class="user-role">مدير النظام</span>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="admin-dashboard.html" class="nav-item">
+            <i class="fas fa-chart-pie"></i>
+            <span>لوحة التحكم</span>
+          </a>
+          <a href="admin-supervisors.html" class="nav-item active">
+            <i class="fa fa-eye"></i>
+            <span>إدارة المراقبين</span>
+          </a>
+          <a href="admin-referees.html" class="nav-item">
+            <i class="fa fa-flag-checkered"></i>
+            <span>إدارة الحكام</span>
+          </a>
+          <a href="admin-matches.html" class="nav-item">
+            <i class="fas fa-calendar-check"></i>
+            <span>المباريات والتعيينات</span>
+          </a>
+          <a href="admin-competitions.html" class="nav-item">
+            <i class="fas fa-trophy"></i>
+            <span>المسابقات والفرق</span>
+          </a>
+          <a href="admin-finance.html" class="nav-item">
+            <i class="fas fa-coins"></i>
+            <span>المالية</span>
+          </a>
+          <a href="admin-reports.html" class="nav-item">
+            <i class="fas fa-file-alt"></i>
+            <span>التقارير</span>
+          </a>
+          <a href="admin-users.html" class="nav-item">
+            <i class="fas fa-users-cog"></i>
+            <span>إدارة المستخدمين</span>
+          </a>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="logoutBtn" class="btn btn-danger w-100">
+            <i class="fas fa-sign-out-alt me-2"></i>تسجيل الخروج
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <nav class="top-navbar">
+        <div class="container-fluid">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <button
+                class="sidebar-toggle btn btn-link d-lg-none"
+                id="sidebarToggle"
+              >
+                <i class="fas fa-bars"></i>
+              </button>
+              <h4 class="page-title mb-0">إدارة المراقبين</h4>
+            </div>
+            <div class="top-nav-right">
+              <div class="date-display" id="currentDate"></div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div class="content-wrapper">
+        <!-- Supervisors Table -->
+        <div class="glass-card">
+          <div
+            class="card-header d-flex justify-content-between align-items-center"
+          >
+            <h5><i class="fas fa-user-tie me-2"></i>المراقبين</h5>
+            <button class="btn btn-primary btn-sm" id="addSupervisorBtn">
+              <i class="fas fa-plus me-2"></i>إضافة مراقب
+            </button>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>الاسم</th>
+                    <th>رقم الهاتف</th>
+                    <th>عدد المباريات</th>
+                    <th>الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="supervisorsBody">
+                  <!-- Dynamic content -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Supervisor Modal -->
+    <div class="modal fade" id="supervisorModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="supervisorModalTitle">
+              إضافة مراقب جديد
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="supervisorForm">
+              <input type="hidden" id="supervisorId" />
+              <div class="mb-3">
+                <label class="form-label">الاسم الكامل *</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="supervisorName"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">رقم الهاتف</label>
+                <input type="tel" class="form-control" id="supervisorPhone" />
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              id="saveSupervisorBtn"
+            >
+              حفظ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="../js/admin/adminSupervisors.js"></script>
+  </body>
+</html>

@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>المسابقات والفرق - لجنة الحكام الرئيسية - التطوير</title>
+
+    <!-- Bootstrap 5.3 RTL -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Font Awesome 6 -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Custom Sports Theme -->
+    <link href="../assets/css/custom-sports-theme.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- Sidebar -->
+    <div class="sidebar-wrapper">
+      <div class="sidebar">
+        <div class="sidebar-brand">
+          <i class="fas fa-futbol"></i>
+          <span>لجنة الحكام</span>
+        </div>
+        <div class="sidebar-user">
+          <div class="avatar">
+            <i class="fas fa-user-shield"></i>
+          </div>
+          <div class="user-info">
+            <span class="user-name" id="adminName">أدمن</span>
+            <span class="user-role">مدير النظام</span>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="admin-dashboard.html" class="nav-item">
+            <i class="fas fa-chart-pie"></i>
+            <span>لوحة التحكم</span>
+          </a>
+          <a href="admin-supervisors.html" class="nav-item">
+            <i class="fa fa-eye"></i>
+            <span>إدارة المراقبين</span>
+          </a>
+          <a href="admin-referees.html" class="nav-item">
+            <i class="fa fa-flag-checkered"></i>
+            <span>إدارة الحكام</span>
+          </a>
+          <a href="admin-matches.html" class="nav-item">
+            <i class="fas fa-calendar-check"></i>
+            <span>المباريات والتعيينات</span>
+          </a>
+          <a href="admin-competitions.html" class="nav-item active">
+            <i class="fas fa-trophy"></i>
+            <span>المسابقات والفرق</span>
+          </a>
+          <a href="admin-finance.html" class="nav-item">
+            <i class="fas fa-coins"></i>
+            <span>المالية</span>
+          </a>
+          <a href="admin-reports.html" class="nav-item">
+            <i class="fas fa-file-alt"></i>
+            <span>التقارير</span>
+          </a>
+          <a href="admin-users.html" class="nav-item">
+            <i class="fas fa-users-cog"></i>
+            <span>إدارة المستخدمين</span>
+          </a>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="logoutBtn" class="btn btn-danger w-100">
+            <i class="fas fa-sign-out-alt me-2"></i>تسجيل الخروج
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Top Navbar -->
+      <nav class="top-navbar">
+        <div class="container-fluid">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <button
+                class="sidebar-toggle btn btn-link d-lg-none"
+                id="sidebarToggle"
+              >
+                <i class="fas fa-bars"></i>
+              </button>
+              <h4 class="page-title mb-0">المسابقات والفرق</h4>
+            </div>
+            <div class="top-nav-right">
+              <div class="date-display" id="currentDate"></div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Content -->
+      <div class="content-wrapper">
+        <!-- Competitions Section -->
+        <div class="glass-card mb-4">
+          <div
+            class="card-header d-flex justify-content-between align-items-center"
+          >
+            <h5><i class="fas fa-trophy me-2"></i>المسابقات</h5>
+            <button class="btn btn-primary btn-sm" id="addCompetitionBtn">
+              <i class="fas fa-plus me-2"></i>إضافة مسابقة
+            </button>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-hover" id="competitionsTable">
+                <thead>
+                  <tr>
+                    <th>اسم المسابقة</th>
+                    <th>الفئة العمرية</th>
+                    <th>مصدر المكافأة</th>
+                    <th>مكافأة المباراة</th>
+                    <th>عدد الفرق</th>
+                    <th>الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="competitionsBody">
+                  <!-- Dynamic content -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Teams Section -->
+        <div class="glass-card">
+          <div
+            class="card-header d-flex justify-content-between align-items-center"
+          >
+            <h5><i class="fas fa-users me-2"></i>الفرق</h5>
+            <div class="d-flex gap-2">
+              <select
+                class="form-select form-select-sm"
+                id="teamFilterCompetition"
+                style="width: auto"
+              >
+                <option value="">جميع المسابقات</option>
+              </select>
+              <button class="btn btn-primary btn-sm" id="addTeamBtn">
+                <i class="fas fa-plus me-2"></i>إضافة فريق
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-hover" id="teamsTable">
+                <thead>
+                  <tr>
+                    <th>اسم الفريق</th>
+                    <th>المسابقة</th>
+                    <th>الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="teamsBody">
+                  <!-- Dynamic content -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Competition Modal -->
+    <div class="modal fade" id="competitionModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="competitionModalTitle">
+              إضافة مسابقة جديدة
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="competitionForm">
+              <input type="hidden" id="competitionId" />
+              <div class="mb-3">
+                <label class="form-label">اسم المسابقة *</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="compName"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">الفئة العمرية *</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="compAgeCategory"
+                  required
+                  placeholder="مثال: تحت 18 سنة"
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">مصدر المكافأة</label>
+                <select class="form-select" id="compPayoutSource">
+                  <option value="federation">الاتحاد</option>
+                  <option value="club">النادي</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">مكافأة المباراة (جنيه)</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  id="compMatchFee"
+                  value="0"
+                  step="0.01"
+                />
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              id="saveCompetitionBtn"
+            >
+              حفظ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Team Modal -->
+    <div class="modal fade" id="teamModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="teamModalTitle">إضافة فريق جديد</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="teamForm">
+              <input type="hidden" id="teamId" />
+              <div class="mb-3">
+                <label class="form-label">المسابقة *</label>
+                <select class="form-select" id="teamCompetition" required>
+                  <option value="">اختر المسابقة</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">اسم الفريق *</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="teamName"
+                  required
+                />
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              إلغاء
+            </button>
+            <button type="button" class="btn btn-primary" id="saveTeamBtn">
+              حفظ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="../js/admin/adminCompetitions.js"></script>
+  </body>
+</html>

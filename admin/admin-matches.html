@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>المباريات والتعيينات - لجنة الحكام الرئيسية - التطوير</title>
+
+    <!-- Bootstrap 5.3 RTL -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Font Awesome 6 -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Custom Sports Theme -->
+    <link href="../assets/css/custom-sports-theme.css" rel="stylesheet" />
+  </head>
+
+  <body>
+    <!-- Sidebar (same as before) -->
+    <div class="sidebar-wrapper">
+      <div class="sidebar">
+        <div class="sidebar-brand">
+          <i class="fas fa-futbol"></i>
+          <span>لجنة الحكام</span>
+        </div>
+        <div class="sidebar-user">
+          <div class="avatar">
+            <i class="fas fa-user-shield"></i>
+          </div>
+          <div class="user-info">
+            <span class="user-name" id="adminName">أدمن</span>
+            <span class="user-role">مدير النظام</span>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="admin-dashboard.html" class="nav-item">
+            <i class="fas fa-chart-pie"></i>
+            <span>لوحة التحكم</span>
+          </a>
+          <a href="admin-supervisors.html" class="nav-item">
+            <i class="fa fa-eye"></i>
+            <span>إدارة المراقبين</span>
+          </a>
+          <a href="admin-referees.html" class="nav-item">
+            <i class="fa fa-flag-checkered"></i>
+            <span>إدارة الحكام</span>
+          </a>
+          <a href="admin-matches.html" class="nav-item active">
+            <i class="fas fa-calendar-check"></i>
+            <span>المباريات والتعيينات</span>
+          </a>
+          <a href="admin-competitions.html" class="nav-item">
+            <i class="fas fa-trophy"></i>
+            <span>المسابقات والفرق</span>
+          </a>
+          <a href="admin-finance.html" class="nav-item">
+            <i class="fas fa-coins"></i>
+            <span>المالية</span>
+          </a>
+          <a href="admin-reports.html" class="nav-item">
+            <i class="fas fa-file-alt"></i>
+            <span>التقارير</span>
+          </a>
+          <a href="admin-users.html" class="nav-item">
+            <i class="fas fa-users-cog"></i>
+            <span>إدارة المستخدمين</span>
+          </a>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="logoutBtn" class="btn btn-danger w-100">
+            <i class="fas fa-sign-out-alt me-2"></i>تسجيل الخروج
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Top Navbar -->
+      <nav class="top-navbar">
+        <div class="container-fluid">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <button
+                class="sidebar-toggle btn btn-link d-lg-none"
+                id="sidebarToggle"
+              >
+                <i class="fas fa-bars"></i>
+              </button>
+              <h4 class="page-title mb-0">المباريات والتعيينات</h4>
+            </div>
+            <div class="top-nav-right">
+              <div class="date-display" id="currentDate"></div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Content -->
+      <div class="content-wrapper">
+        <!-- Filters & Actions -->
+        <div class="glass-card mb-4">
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-3">
+                <select class="form-select" id="filterCompetition">
+                  <option value="">جميع المسابقات</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <input type="date" class="form-control" id="filterDate" />
+              </div>
+              <div class="col-md-3">
+                <select class="form-select" id="filterStatus">
+                  <option value="">جميع المباريات</option>
+                  <option value="upcoming">قادمة</option>
+                  <option value="past">منتهية</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <button class="btn btn-primary w-100" id="addMatchBtn">
+                  <i class="fas fa-plus me-2"></i>إضافة مباراة
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Matches Table -->
+        <div class="glass-card">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0" id="matchesTable">
+                <thead>
+                  <tr>
+                    <th>التاريخ</th>
+                    <th>الوقت</th>
+                    <th>الملعب</th>
+                    <th>المضيف</th>
+                    <th>الضيف</th>
+                    <th>طاقم الحكام</th>
+                    <th>ملاحظات</th>
+                    <th>الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="matchesBody">
+                  <!-- Dynamic content -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Match Modal -->
+    <div class="modal fade" id="matchModal" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="matchModalTitle">إضافة مباراة جديدة</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="matchForm">
+              <input type="hidden" id="matchId" />
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label">المسابقة *</label>
+                  <select class="form-select" id="matchCompetition" required>
+                    <option value="">اختر المسابقة</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">الملعب *</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="matchStadium"
+                    required
+                  />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">التاريخ *</label>
+                  <input
+                    type="date"
+                    class="form-control"
+                    id="matchDate"
+                    required
+                  />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">الوقت *</label>
+                  <input
+                    type="time"
+                    class="form-control"
+                    id="matchTime"
+                    required
+                  />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">الفريق المضيف *</label>
+                  <select class="form-select" id="homeTeam" required>
+                    <option value="">اختر الفريق</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">الفريق الضيف *</label>
+                  <select class="form-select" id="awayTeam" required>
+                    <option value="">اختر الفريق</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">الحكم</label>
+                  <select class="form-select" id="mainReferee">
+                    <option value="">اختر الحكم</option>
+                  </select>
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label">مساعد أول</label>
+                  <select class="form-select" id="assistant1">
+                    <option value="">اختر الحكم</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">مساعد ثاني</label>
+                  <select class="form-select" id="assistant2">
+                    <option value="">اختر الحكم</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">الحكم الرابع</label>
+                  <select class="form-select" id="fourthReferee">
+                    <option value="">اختر الحكم</option>
+                  </select>
+                </div>
+                <div class="col-md-6" id="varContainer" style="display: none">
+                  <label class="form-label">حكم VAR</label>
+                  <select class="form-select" id="varReferee">
+                    <option value="">اختر حكم VAR</option>
+                  </select>
+                </div>
+                <div class="col-md-6" id="avarContainer" style="display: none">
+                  <label class="form-label">حكم AVAR</label>
+                  <select class="form-select" id="avarReferee">
+                    <option value="">اختر حكم AVAR</option>
+                  </select>
+                </div>
+
+                <!-- المراقب -->
+                <div class="col-md-6">
+                  <label class="form-label">المراقب</label>
+                  <select class="form-select" id="supervisorReferee">
+                    <option value="">اختر المراقب</option>
+                  </select>
+                </div>
+                <div class="col-md-12">
+                  <label class="form-label">ملاحظات</label>
+                  <textarea
+                    class="form-control"
+                    id="matchNotes"
+                    rows="2"
+                  ></textarea>
+                </div>
+                <div class="col-md-12">
+                  <div class="form-check">
+                    <input
+                      type="checkbox"
+                      class="form-check-input"
+                      id="isNotified"
+                    />
+                    <label class="form-check-label" for="isNotified"
+                      >تم التبليغ</label
+                    >
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              إلغاء
+            </button>
+            <button type="button" class="btn btn-primary" id="saveMatchBtn">
+              حفظ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Match Details Modal -->
+    <div class="modal fade" id="matchDetailsModal" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">تفاصيل المباراة</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body" id="matchDetailsContent">
+            <!-- Dynamic content -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- بعد Match Details Modal -->
+    <!-- Excuse Modal -->
+    <div class="modal fade" id="excuseModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">تسجيل اعتذار حكم</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="excuseForm">
+              <input type="hidden" id="excuseMatchId" />
+              <div class="mb-3">
+                <label class="form-label">اختر الحكم المعتذر *</label>
+                <select class="form-select" id="excuseReferee" required>
+                  <option value="">اختر الحكم</option>
+                </select>
+                <small class="text-muted">سيتم عرض حكام هذه المباراة فقط</small>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">سبب الاعتذار *</label>
+                <select class="form-select" id="excuseReason" required>
+                  <option value="">اختر السبب</option>
+                  <option value="مرض">مرض</option>
+                  <option value="ظروف عائلية">ظروف عائلية</option>
+                  <option value="سفر">سفر</option>
+                  <option value="إصابة">إصابة</option>
+                  <option value="ظروف خاصة">ظروف خاصة</option>
+                  <option value="أخرى">أخرى</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">تفاصيل إضافية</label>
+                <textarea
+                  class="form-control"
+                  id="excuseNotes"
+                  rows="2"
+                  placeholder="أدخل تفاصيل إضافية..."
+                ></textarea>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">تاريخ الاعتذار</label>
+                <input type="date" class="form-control" id="excuseDate" />
+              </div>
+              <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                سيتم تسجيل الاعتذار وإزالة الحكم من المباراة تلقائياً
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              إلغاء
+            </button>
+            <button type="button" class="btn btn-danger" id="saveExcuseBtn">
+              <i class="fas fa-save me-2"></i>تسجيل الاعتذار
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="../js/admin/adminMatches.js"></script>
+  </body>
+</html>

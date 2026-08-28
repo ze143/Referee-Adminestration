@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>إدارة المستخدمين - لجنة الحكام الرئيسية - التطوير</title>
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link href="../assets/css/custom-sports-theme.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- Sidebar -->
+    <div class="sidebar-wrapper">
+      <div class="sidebar">
+        <div class="sidebar-brand">
+          <i class="fas fa-futbol"></i>
+          <span>لجنة الحكام</span>
+        </div>
+        <div class="sidebar-user">
+          <div class="avatar">
+            <i class="fas fa-user-shield"></i>
+          </div>
+          <div class="user-info">
+            <span class="user-name" id="adminName">أدمن</span>
+            <span class="user-role" id="userRoleDisplay">مدير النظام</span>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="admin-dashboard.html" class="nav-item">
+            <i class="fas fa-chart-pie"></i>
+            <span>لوحة التحكم</span>
+          </a>
+          <a href="admin-supervisors.html" class="nav-item">
+            <i class="fa fa-eye"></i>
+            <span>إدارة المراقبين</span>
+          </a>
+          <a href="admin-referees.html" class="nav-item">
+            <i class="fa fa-flag-checkered"></i>
+            <span>إدارة الحكام</span>
+          </a>
+          <a href="admin-matches.html" class="nav-item">
+            <i class="fas fa-calendar-check"></i>
+            <span>المباريات والتعيينات</span>
+          </a>
+          <a href="admin-competitions.html" class="nav-item">
+            <i class="fas fa-trophy"></i>
+            <span>المسابقات والفرق</span>
+          </a>
+          <a href="admin-finance.html" class="nav-item">
+            <i class="fas fa-coins"></i>
+            <span>المالية</span>
+          </a>
+          <a href="admin-reports.html" class="nav-item">
+            <i class="fas fa-file-alt"></i>
+            <span>التقارير</span>
+          </a>
+          <a href="admin-users.html" class="nav-item active">
+            <i class="fas fa-users-cog"></i>
+            <span>إدارة المستخدمين</span>
+          </a>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="logoutBtn" class="btn btn-danger w-100">
+            <i class="fas fa-sign-out-alt me-2"></i>تسجيل الخروج
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <nav class="top-navbar">
+        <div class="container-fluid">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <button
+                class="sidebar-toggle btn btn-link d-lg-none"
+                id="sidebarToggle"
+              >
+                <i class="fas fa-bars"></i>
+              </button>
+              <h4 class="page-title mb-0">إدارة المستخدمين</h4>
+            </div>
+            <div class="top-nav-right">
+              <div class="date-display" id="currentDate"></div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div class="content-wrapper">
+        <!-- Users Table -->
+        <div class="glass-card">
+          <div
+            class="card-header d-flex justify-content-between align-items-center"
+          >
+            <h5><i class="fas fa-users me-2"></i>المستخدمين</h5>
+            <div>
+              <!-- ✅ زر إضافة مستخدم -->
+              <button class="btn btn-primary btn-sm me-2" id="addUserBtn">
+                <i class="fas fa-user-plus me-2"></i>إضافة مستخدم
+              </button>
+              <button class="btn btn-warning btn-sm" id="syncProfilesBtn">
+                <i class="fas fa-sync me-2"></i>مزامنة
+              </button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0" id="usersTable">
+                <thead>
+                  <tr>
+                    <th>البريد الإلكتروني</th>
+                    <th>الاسم الكامل</th>
+                    <th>الدور</th>
+                    <th>تاريخ التسجيل</th>
+                    <th>الصلاحيات</th>
+                    <th>الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="usersBody">
+                  <!-- سيتم تعبئتها بواسطة JavaScript -->
+                  <tr>
+                    <td colspan="6" class="text-center py-4">
+                      <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">جاري التحميل...</span>
+                      </div>
+                      <p class="mt-2 text-muted">جاري تحميل المستخدمين...</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- ✅ User Modal (إضافة/تعديل المستخدم) -->
+    <!-- ============================================ -->
+    <div class="modal fade" id="userModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="userModalTitle">إضافة مستخدم جديد</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="userForm">
+              <input type="hidden" id="userId" />
+              <div class="mb-3">
+                <label class="form-label">البريد الإلكتروني *</label>
+                <input
+                  type="email"
+                  class="form-control"
+                  id="userEmail"
+                  required
+                  placeholder="example@gmail.com"
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">كلمة المرور *</label>
+                <input
+                  type="password"
+                  class="form-control"
+                  id="userPassword"
+                  required
+                  placeholder="******"
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">الاسم الكامل *</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="userFullName"
+                  required
+                  placeholder="الاسم الكامل"
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">الدور *</label>
+                <select class="form-select" id="userRole" required>
+                  <option value="viewer">مشاهد</option>
+                  <option value="editor">محرر مشروط</option>
+                  <option value="admin">أدمن</option>
+                </select>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              إلغاء
+            </button>
+            <button type="button" class="btn btn-primary" id="saveUserBtn">
+              حفظ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- ✅ Modal إدارة صلاحيات المحرر -->
+    <!-- ============================================ -->
+    <div class="modal fade" id="editorPermissionsModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">إدارة صلاحيات المحرر</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="permissionUserId" />
+            <div class="mb-3">
+              <label class="form-label">المستخدم</label>
+              <input
+                type="text"
+                class="form-control"
+                id="permissionUserName"
+                disabled
+              />
+            </div>
+            <hr />
+            <div class="mb-3">
+              <label class="form-label">نوع الصلاحية</label>
+              <select class="form-select" id="permissionType">
+                <option value="assistants_only">🔹 مساعدين فقط</option>
+                <option value="full">🔸 حكام + مساعدين (صلاحية كاملة)</option>
+              </select>
+              <small class="text-muted">
+                <span id="permissionTypeHint"
+                  >🔹 يمكن تعيين المساعدين فقط (مساعد أول + مساعد ثاني)</span
+                >
+              </small>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">نطاق الصلاحيات</label>
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label">مسابقة محددة</label>
+                  <select class="form-select" id="permissionCompetition">
+                    <option value="">جميع المسابقات</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">تاريخ محدد</label>
+                  <input type="date" class="form-control" id="permissionDate" />
+                </div>
+              </div>
+              <small class="text-muted"
+                >اترك الحقل فارغاً للسماح بجميع النطاقات</small
+              >
+            </div>
+            <hr />
+            <div class="mb-3">
+              <label class="form-label">سجل الصلاحيات الممنوحة</label>
+              <div class="table-responsive">
+                <table class="table table-sm" id="permissionHistoryTable">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>النوع</th>
+                      <th>التاريخ الممنوح</th>
+                      <th>المسابقة</th>
+                      <th>تاريخ المنح</th>
+                      <th>الحالة</th>
+                      <th>إجراء</th>
+                    </tr>
+                  </thead>
+                  <tbody id="permissionHistoryBody">
+                    <tr>
+                      <td colspan="7" class="text-center text-muted">
+                        لا توجد صلاحيات
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              إغلاق
+            </button>
+            <button
+              type="button"
+              class="btn btn-success"
+              id="grantPermissionBtn"
+            >
+              <i class="fas fa-plus me-2"></i>منح صلاحية
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="../js/admin/adminUsers.js"></script>
+  </body>
+</html>

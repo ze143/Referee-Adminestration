@@ -1,4 +1,4 @@
-// adminMatches.js - النسخة النهائية مع تنسيق الوقت 12 ساعة
+// adminMatches.js - النسخة النهائية مع تنسيق الوقت 12 ساعة وإظهار درجة الحكم ومنع الموقوفين والمتعارضين
 import { supabase } from "../supabaseClient.js";
 import { requireAuth, logout } from "../auth.js";
 import {
@@ -14,36 +14,37 @@ let allCompetitions = [];
 let allTeams = [];
 let allSupervisors = [];
 let currentMatchId = null;
+let refereeMatchCounts = {}; // ✅ لتخزين عدد مباريات كل حكم في المسابقة المختارة
 
 // ✅ دالة مساعدة لتنسيق الوقت من 24 ساعة إلى 12 ساعة (عربي)
 function formatTime(timeString) {
-    if (!timeString) return '-';
-    
-    // إذا كان الوقت بالفعل بصيغة 12 ساعة (يحتوي على ص/م)
-    if (timeString.includes('ص') || timeString.includes('م')) {
-        return timeString;
+  if (!timeString) return "-";
+
+  // إذا كان الوقت بالفعل بصيغة 12 ساعة (يحتوي على ص/م)
+  if (timeString.includes("ص") || timeString.includes("م")) {
+    return timeString;
+  }
+
+  try {
+    // استخراج الساعات والدقائق
+    let parts = timeString.split(":");
+    let hours = parseInt(parts[0]);
+    let minutes = parts[1];
+
+    // تحديد ص أو م
+    let ampm = hours >= 12 ? "م" : "ص";
+
+    // تحويل إلى 12 ساعة
+    if (hours > 12) {
+      hours = hours - 12;
+    } else if (hours === 0) {
+      hours = 12;
     }
-    
-    try {
-        // استخراج الساعات والدقائق
-        let parts = timeString.split(':');
-        let hours = parseInt(parts[0]);
-        let minutes = parts[1];
-        
-        // تحديد ص أو م
-        let ampm = hours >= 12 ? 'م' : 'ص';
-        
-        // تحويل إلى 12 ساعة
-        if (hours > 12) {
-            hours = hours - 12;
-        } else if (hours === 0) {
-            hours = 12;
-        }
-        
-        return `${hours}.${minutes} ${ampm}`;
-    } catch (e) {
-        return timeString;
-    }
+
+    return `${hours}.${minutes} ${ampm}`;
+  } catch (e) {
+    return timeString;
+  }
 }
 
 // Initialize
@@ -118,9 +119,19 @@ async function init() {
 
     document
       .getElementById("matchCompetition")
-      .addEventListener("change", function () {
+      .addEventListener("change", async function () {
         updateTeamDropdowns();
         checkAndToggleVar(this.value);
+
+        // ✅ تحديث عدد مباريات الحكام عند اختيار المسابقة
+        await loadRefereeMatchCounts(this.value);
+        // ✅ إعادة تعبئة قوائم الحكام مع الأرقام الجديدة
+        await populateRefereeDropdownsWithAvailability(
+          null,
+          document.getElementById("matchDate").value,
+          document.getElementById("matchTime").value,
+          document.getElementById("matchId").value || null,
+        );
       });
 
     // ✅ إضافة مستمع لزر حفظ الاعتذار
@@ -229,15 +240,14 @@ async function loadMatches() {
                 var_referee:referees!matches_var_referee_id_fkey(full_name, id),
                 avar_referee:referees!matches_avar_referee_id_fkey(full_name, id),
                 supervisor:supervisors!matches_supervisor_id_fkey(full_name, id)
-            `
+            `,
       )
       .order("match_date", { ascending: false });
 
     if (error) throw error;
     allMatches = data || [];
     renderMatches(allMatches);
-        filterMatches();
-
+    filterMatches();
   } catch (error) {
     console.error("Error loading matches:", error);
     Swal.fire({
@@ -250,6 +260,58 @@ async function loadMatches() {
 }
 
 // ============================================
+// ✅ دالة لجلب عدد مباريات كل حكم في مسابقة معينة
+// ============================================
+
+async function loadRefereeMatchCounts(competitionId) {
+  if (!competitionId) {
+    refereeMatchCounts = {};
+    return;
+  }
+
+  try {
+    // جلب جميع المباريات في المسابقة المختارة
+    const { data: matches, error } = await supabase
+      .from("matches")
+      .select(
+        `
+        main_referee_id,
+        fourth_referee_id,
+        assistant1_referee_id,
+        assistant2_referee_id,
+        var_referee_id,
+        avar_referee_id
+      `,
+      )
+      .eq("competition_id", competitionId);
+
+    if (error) throw error;
+
+    // حساب عدد المباريات لكل حكم
+    const counts = {};
+    matches.forEach((match) => {
+      const refereeIds = [
+        match.main_referee_id,
+        match.fourth_referee_id,
+        match.assistant1_referee_id,
+        match.assistant2_referee_id,
+        match.var_referee_id,
+        match.avar_referee_id,
+      ].filter((id) => id); // إزالة القيم الفارغة
+
+      refereeIds.forEach((id) => {
+        counts[id] = (counts[id] || 0) + 1;
+      });
+    });
+
+    refereeMatchCounts = counts;
+  } catch (error) {
+    console.error("Error loading referee match counts:", error);
+    refereeMatchCounts = {};
+  }
+}
+
+// ============================================
 // Populate dropdowns
 // ============================================
 
@@ -257,9 +319,11 @@ function populateCompetitionDropdowns() {
   const select = document.getElementById("matchCompetition");
   select.innerHTML = '<option value="">اختر المسابقة</option>';
   allCompetitions.forEach((comp) => {
-    select.innerHTML += `<option value="${comp.id}">${comp.name}</option>`;  });
+    select.innerHTML += `<option value="${comp.id}">${comp.name}</option>`;
+  });
 }
 
+// ✅ دالة getRefereesByRole مع ترتيب حسب الدرجة ثم الاسم
 function getRefereesByRole(role, excludeRefereeId = null) {
   let filtered = allReferees.filter((ref) => {
     if (excludeRefereeId && ref.id === excludeRefereeId) {
@@ -268,32 +332,91 @@ function getRefereesByRole(role, excludeRefereeId = null) {
     return true;
   });
 
+  // تصفية حسب الدور
   switch (role) {
     case "main":
-      return filtered.filter(
+      filtered = filtered.filter(
         (ref) =>
-          ref.job === "referee" || ref.job === "both" || ref.degree === "New"
+          ref.job === "referee" || ref.job === "both" || ref.degree === "New",
       );
+      break;
     case "assistant":
-      return filtered.filter(
+      filtered = filtered.filter(
         (ref) =>
-          ref.job === "assistant" || ref.job === "both" || ref.degree === "New"
+          ref.job === "assistant" || ref.job === "both" || ref.degree === "New",
       );
+      break;
     case "var":
-      return filtered.filter(
+      filtered = filtered.filter(
         (ref) =>
           ref.has_var_license === true &&
-          (ref.job === "referee" || ref.job === "both" || ref.degree === "New")
+          (ref.job === "referee" || ref.job === "both" || ref.degree === "New"),
       );
+      break;
     case "avar":
-      return filtered.filter(
+      filtered = filtered.filter(
         (ref) =>
           ref.has_avar_license === true &&
-          (ref.job === "referee" || ref.job === "both" || ref.degree === "New")
+          (ref.job === "referee" || ref.job === "both" || ref.degree === "New"),
       );
+      break;
     default:
-      return filtered;
+      break;
   }
+
+  // ✅ ترتيب حسب الدرجة ثم الاسم أبجدياً
+  const degreeOrder = {
+    "1st": 1,
+    "2nd": 2,
+    "3rd": 3,
+    International: 4,
+    New: 5,
+    "": 6, // لو مفيش درجة
+  };
+
+  filtered.sort((a, b) => {
+    // أولاً: الترتيب حسب الدرجة
+    const degreeA = degreeOrder[a.degree] || 6;
+    const degreeB = degreeOrder[b.degree] || 6;
+
+    if (degreeA !== degreeB) {
+      return degreeA - degreeB;
+    }
+
+    // ثانياً: الترتيب أبجدياً حسب الاسم
+    return a.full_name.localeCompare(b.full_name);
+  });
+
+  return filtered;
+}
+
+// ✅ دالة لعرض اسم الحكم مع درجته وعدد المباريات
+function getRefereeDisplayText(referee) {
+  const degreeNames = {
+    "1st": "درجة أولى",
+    "2nd": "درجة ثانية",
+    "3rd": "درجة ثالثة",
+    International: "دولي",
+    New: "جديد",
+  };
+
+  let label = referee.full_name;
+
+  // إضافة الدرجة
+  if (referee.degree) {
+    label += ` (${degreeNames[referee.degree] || referee.degree})`;
+  }
+
+  // ✅ إضافة عدد المباريات في المسابقة المختارة (حتى لو صفر)
+  const matchCount = refereeMatchCounts[referee.id] || 0;
+  label += ` (عدد: ${matchCount} مباراة)`; // دايماً هتظهر حتى لو 0
+
+  // إضافة علامة موقوف
+  if (referee.is_suspended) {
+    label += " 🚫 موقوف";
+  }
+
+  return label;
 }
 
 function populateRefereeDropdowns(excludeRefereeId = null) {
@@ -301,8 +424,7 @@ function populateRefereeDropdowns(excludeRefereeId = null) {
   const mainReferees = getRefereesByRole("main", excludeRefereeId);
   mainSelect.innerHTML = '<option value="">اختر الحكم الرئيسي</option>';
   mainReferees.forEach((ref) => {
-    const label =
-      ref.degree === "New" ? `${ref.full_name} 🌟 (جديد)` : ref.full_name;
+    const label = getRefereeDisplayText(ref);
     mainSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
@@ -310,8 +432,7 @@ function populateRefereeDropdowns(excludeRefereeId = null) {
   const fourthReferees = getRefereesByRole("main", excludeRefereeId);
   fourthSelect.innerHTML = '<option value="">اختر الحكم الرابع</option>';
   fourthReferees.forEach((ref) => {
-    const label =
-      ref.degree === "New" ? `${ref.full_name} 🌟 (جديد)` : ref.full_name;
+    const label = getRefereeDisplayText(ref);
     fourthSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
@@ -319,8 +440,7 @@ function populateRefereeDropdowns(excludeRefereeId = null) {
   const assistantReferees = getRefereesByRole("assistant", excludeRefereeId);
   assistant1Select.innerHTML = '<option value="">اختر مساعد أول</option>';
   assistantReferees.forEach((ref) => {
-    const label =
-      ref.degree === "New" ? `${ref.full_name} 🌟 (جديد)` : ref.full_name;
+    const label = getRefereeDisplayText(ref);
     assistant1Select.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
@@ -328,8 +448,7 @@ function populateRefereeDropdowns(excludeRefereeId = null) {
   const assistantReferees2 = getRefereesByRole("assistant", excludeRefereeId);
   assistant2Select.innerHTML = '<option value="">اختر مساعد ثاني</option>';
   assistantReferees2.forEach((ref) => {
-    const label =
-      ref.degree === "New" ? `${ref.full_name} 🌟 (جديد)` : ref.full_name;
+    const label = getRefereeDisplayText(ref);
     assistant2Select.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
@@ -337,8 +456,7 @@ function populateRefereeDropdowns(excludeRefereeId = null) {
   const varReferees = getRefereesByRole("var", excludeRefereeId);
   varSelect.innerHTML = '<option value="">اختر حكم VAR</option>';
   varReferees.forEach((ref) => {
-    const label =
-      ref.degree === "New" ? `${ref.full_name} 🌟 (جديد)` : ref.full_name;
+    const label = getRefereeDisplayText(ref);
     varSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
@@ -346,8 +464,7 @@ function populateRefereeDropdowns(excludeRefereeId = null) {
   const avarReferees = getRefereesByRole("avar", excludeRefereeId);
   avarSelect.innerHTML = '<option value="">اختر حكم AVAR</option>';
   avarReferees.forEach((ref) => {
-    const label =
-      ref.degree === "New" ? `${ref.full_name} 🌟 (جديد)` : ref.full_name;
+    const label = getRefereeDisplayText(ref);
     avarSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 }
@@ -358,7 +475,7 @@ function populateRefereeDropdownsWithExclusions(
   asst1Id,
   asst2Id,
   varId,
-  avarId
+  avarId,
 ) {
   const excludedIds = [
     mainId,
@@ -372,72 +489,66 @@ function populateRefereeDropdownsWithExclusions(
   const mainSelect = document.getElementById("mainReferee");
   let mainReferees = getRefereesByRole("main");
   mainReferees = mainReferees.filter(
-    (ref) => !excludedIds.includes(ref.id) || ref.id === mainId
+    (ref) => !excludedIds.includes(ref.id) || ref.id === mainId,
   );
   mainSelect.innerHTML = '<option value="">اختر الحكم الرئيسي</option>';
   mainReferees.forEach((ref) => {
-    const label =
-      ref.degree === "New" ? `${ref.full_name} 🌟 (جديد)` : ref.full_name;
+    const label = getRefereeDisplayText(ref);
     mainSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
   const fourthSelect = document.getElementById("fourthReferee");
   let fourthReferees = getRefereesByRole("main");
   fourthReferees = fourthReferees.filter(
-    (ref) => !excludedIds.includes(ref.id) || ref.id === fourthId
+    (ref) => !excludedIds.includes(ref.id) || ref.id === fourthId,
   );
   fourthSelect.innerHTML = '<option value="">اختر الحكم الرابع</option>';
   fourthReferees.forEach((ref) => {
-    const label =
-      ref.degree === "New" ? `${ref.full_name} 🌟 (جديد)` : ref.full_name;
+    const label = getRefereeDisplayText(ref);
     fourthSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
   const assistant1Select = document.getElementById("assistant1");
   let assistantReferees = getRefereesByRole("assistant");
   assistantReferees = assistantReferees.filter(
-    (ref) => !excludedIds.includes(ref.id) || ref.id === asst1Id
+    (ref) => !excludedIds.includes(ref.id) || ref.id === asst1Id,
   );
   assistant1Select.innerHTML = '<option value="">اختر مساعد أول</option>';
   assistantReferees.forEach((ref) => {
-    const label =
-      ref.degree === "New" ? `${ref.full_name} 🌟 (جديد)` : ref.full_name;
+    const label = getRefereeDisplayText(ref);
     assistant1Select.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
   const assistant2Select = document.getElementById("assistant2");
   let assistantReferees2 = getRefereesByRole("assistant");
   assistantReferees2 = assistantReferees2.filter(
-    (ref) => !excludedIds.includes(ref.id) || ref.id === asst2Id
+    (ref) => !excludedIds.includes(ref.id) || ref.id === asst2Id,
   );
   assistant2Select.innerHTML = '<option value="">اختر مساعد ثاني</option>';
   assistantReferees2.forEach((ref) => {
-    const label =
-      ref.degree === "New" ? `${ref.full_name} 🌟 (جديد)` : ref.full_name;
+    const label = getRefereeDisplayText(ref);
     assistant2Select.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
   const varSelect = document.getElementById("varReferee");
   let varReferees = getRefereesByRole("var");
   varReferees = varReferees.filter(
-    (ref) => !excludedIds.includes(ref.id) || ref.id === varId
+    (ref) => !excludedIds.includes(ref.id) || ref.id === varId,
   );
   varSelect.innerHTML = '<option value="">اختر حكم VAR</option>';
   varReferees.forEach((ref) => {
-    const label =
-      ref.degree === "New" ? `${ref.full_name} 🌟 (جديد)` : ref.full_name;
+    const label = getRefereeDisplayText(ref);
     varSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
   const avarSelect = document.getElementById("avarReferee");
   let avarReferees = getRefereesByRole("avar");
   avarReferees = avarReferees.filter(
-    (ref) => !excludedIds.includes(ref.id) || ref.id === avarId
+    (ref) => !excludedIds.includes(ref.id) || ref.id === avarId,
   );
   avarSelect.innerHTML = '<option value="">اختر حكم AVAR</option>';
   avarReferees.forEach((ref) => {
-    const label =
-      ref.degree === "New" ? `${ref.full_name} 🌟 (جديد)` : ref.full_name;
+    const label = getRefereeDisplayText(ref);
     avarSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 }
@@ -486,12 +597,339 @@ function updateTeamDropdowns() {
   if (!competitionId) return;
 
   const teams = allTeams.filter(
-    (team) => team.competition_id === competitionId
+    (team) => team.competition_id === competitionId,
   );
   teams.forEach((team) => {
     homeSelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
     awaySelect.innerHTML += `<option value="${team.id}">${team.name}</option>`;
   });
+}
+
+// ============================================
+// ✅ التحقق من توفر الحكم (موقوف أو تعارض)
+// ============================================
+
+async function checkRefereeAvailabilityForDropdown(
+  refereeId,
+  matchDate,
+  matchTime,
+  excludeMatchId = null,
+) {
+  if (!refereeId) return { available: true, reason: "" };
+
+  try {
+    const { data: referee, error: refError } = await supabase
+      .from("referees")
+      .select("is_suspended, suspension_until, full_name")
+      .eq("id", refereeId)
+      .single();
+
+    if (refError) throw refError;
+
+    // ✅ التحقق من الإيقاف
+    if (referee.is_suspended) {
+      return {
+        available: false,
+        reason: `🚫 موقوف`,
+        fullName: referee.full_name,
+      };
+    }
+
+    if (
+      referee.suspension_until &&
+      new Date(referee.suspension_until) >= new Date(matchDate)
+    ) {
+      return {
+        available: false,
+        reason: `🚫 موقوف حتى ${new Date(referee.suspension_until).toLocaleDateString("ar-EG")}`,
+        fullName: referee.full_name,
+      };
+    }
+
+    // ✅ التحقق من تعارض المباريات
+    let query = supabase
+      .from("matches")
+      .select(
+        "id, match_date, match_time, main_referee_id, fourth_referee_id, assistant1_referee_id, assistant2_referee_id, var_referee_id, avar_referee_id",
+      )
+      .eq("match_date", matchDate)
+      .or(
+        `main_referee_id.eq.${refereeId},fourth_referee_id.eq.${refereeId},assistant1_referee_id.eq.${refereeId},assistant2_referee_id.eq.${refereeId},var_referee_id.eq.${refereeId},avar_referee_id.eq.${refereeId}`,
+      );
+
+    if (excludeMatchId) {
+      query = query.neq("id", excludeMatchId);
+    }
+
+    const { data: conflicts, error: confError } = await query;
+
+    if (confError) throw confError;
+
+    if (conflicts && conflicts.length > 0) {
+      const matchDateTime = new Date(`${matchDate}T${matchTime}`);
+      for (const conflict of conflicts) {
+        const conflictDateTime = new Date(
+          `${conflict.match_date}T${conflict.match_time}`,
+        );
+        const diffMinutes = Math.abs(
+          (matchDateTime - conflictDateTime) / (1000 * 60),
+        );
+
+        if (diffMinutes < 120) {
+          return {
+            available: false,
+            reason: `⚠️ مباراة أخرى الساعة ${conflict.match_time} (الفارق ${Math.round(diffMinutes)} دقيقة)`,
+            fullName: referee.full_name,
+          };
+        }
+      }
+    }
+
+    return { available: true, reason: "" };
+  } catch (error) {
+    console.error("Error checking referee availability:", error);
+    return { available: true, reason: "" };
+  }
+}
+
+// ============================================
+// ✅ تعبئة قوائم الحكام مع التحقق من التوفر
+// ============================================
+
+async function populateRefereeDropdownsWithAvailability(
+  excludeRefereeId = null,
+  matchDate = null,
+  matchTime = null,
+  excludeMatchId = null,
+) {
+  const mainSelect = document.getElementById("mainReferee");
+  const mainReferees = getRefereesByRole("main", excludeRefereeId);
+  mainSelect.innerHTML = '<option value="">اختر الحكم الرئيسي</option>';
+
+  for (const ref of mainReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    // ✅ التحقق من الإيقاف دائمًا
+    if (ref.is_suspended) {
+      disabled = true;
+      extraClass = "text-danger opacity-50";
+      extraText = " 🚫 موقوف";
+    }
+
+    // ✅ التحقق من تعارض التوقيت (لو فيه تاريخ ووقت)
+    if (matchDate && matchTime && !disabled) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` ⚠️ ${availability.reason}`;
+      }
+    }
+
+    mainSelect.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // ===== الحكم الرابع =====
+  const fourthSelect = document.getElementById("fourthReferee");
+  const fourthReferees = getRefereesByRole("main", excludeRefereeId);
+  fourthSelect.innerHTML = '<option value="">اختر الحكم الرابع</option>';
+
+  for (const ref of fourthReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (ref.is_suspended) {
+      disabled = true;
+      extraClass = "text-danger opacity-50";
+      extraText = " 🚫 موقوف";
+    }
+
+    if (matchDate && matchTime && !disabled) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` ⚠️ ${availability.reason}`;
+      }
+    }
+
+    fourthSelect.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // ===== مساعد أول =====
+  const assistant1Select = document.getElementById("assistant1");
+  const assistantReferees = getRefereesByRole("assistant", excludeRefereeId);
+  assistant1Select.innerHTML = '<option value="">اختر مساعد أول</option>';
+
+  for (const ref of assistantReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (ref.is_suspended) {
+      disabled = true;
+      extraClass = "text-danger opacity-50";
+      extraText = " 🚫 موقوف";
+    }
+
+    if (matchDate && matchTime && !disabled) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` ⚠️ ${availability.reason}`;
+      }
+    }
+
+    assistant1Select.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // ===== مساعد ثاني =====
+  const assistant2Select = document.getElementById("assistant2");
+  const assistantReferees2 = getRefereesByRole("assistant", excludeRefereeId);
+  assistant2Select.innerHTML = '<option value="">اختر مساعد ثاني</option>';
+
+  for (const ref of assistantReferees2) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (ref.is_suspended) {
+      disabled = true;
+      extraClass = "text-danger opacity-50";
+      extraText = " 🚫 موقوف";
+    }
+
+    if (matchDate && matchTime && !disabled) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` ⚠️ ${availability.reason}`;
+      }
+    }
+
+    assistant2Select.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // ===== حكم VAR =====
+  const varSelect = document.getElementById("varReferee");
+  const varReferees = getRefereesByRole("var", excludeRefereeId);
+  varSelect.innerHTML = '<option value="">اختر حكم VAR</option>';
+
+  for (const ref of varReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (ref.is_suspended) {
+      disabled = true;
+      extraClass = "text-danger opacity-50";
+      extraText = " 🚫 موقوف";
+    }
+
+    if (matchDate && matchTime && !disabled) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` ⚠️ ${availability.reason}`;
+      }
+    }
+
+    varSelect.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // ===== حكم AVAR =====
+  const avarSelect = document.getElementById("avarReferee");
+  const avarReferees = getRefereesByRole("avar", excludeRefereeId);
+  avarSelect.innerHTML = '<option value="">اختر حكم AVAR</option>';
+
+  for (const ref of avarReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (ref.is_suspended) {
+      disabled = true;
+      extraClass = "text-danger opacity-50";
+      extraText = " 🚫 موقوف";
+    }
+
+    if (matchDate && matchTime && !disabled) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` ⚠️ ${availability.reason}`;
+      }
+    }
+
+    avarSelect.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
 }
 
 // ============================================
@@ -669,7 +1107,7 @@ function renderMatches(matches) {
 }
 
 // ============================================
-// ✅ باقي الدوال (بدون تغيير)
+// ✅ باقي الدوال
 // ============================================
 
 async function toggleRefereeNotification(matchId, refereeRole) {
@@ -716,7 +1154,7 @@ async function toggleRefereeNotification(matchId, refereeRole) {
                 assistant2:referees!matches_assistant2_referee_id_fkey(full_name),
                 var_referee:referees!matches_var_referee_id_fkey(full_name),
                 avar_referee:referees!matches_avar_referee_id_fkey(full_name)
-            `
+            `,
       )
       .eq("id", matchId)
       .single();
@@ -878,302 +1316,6 @@ function filterMatches() {
   renderMatches(filtered);
 }
 
-function getRefereeDisplayText(referee) {
-  const degreeNames = {
-    "1st": "درجة أولى",
-    "2nd": "درجة ثانية",
-    "3rd": "درجة ثالثة",
-    International: "دولي",
-    New: "جديد",
-  };
-
-  let label = referee.full_name;
-
-  if (referee.degree) {
-    label += ` (${degreeNames[referee.degree] || referee.degree})`;
-  }
-
-  if (referee.is_suspended) {
-    label += " 🚫 موقوف";
-  }
-
-  return label;
-}
-
-async function checkRefereeAvailabilityForDropdown(
-  refereeId,
-  matchDate,
-  matchTime,
-  excludeMatchId = null
-) {
-  if (!refereeId) return { available: true, reason: "" };
-
-  try {
-    const { data: referee, error: refError } = await supabase
-      .from("referees")
-      .select("is_suspended, suspension_until, full_name")
-      .eq("id", refereeId)
-      .single();
-
-    if (refError) throw refError;
-
-    if (referee.is_suspended) {
-      return {
-        available: false,
-        reason: `🚫 موقوف`,
-        fullName: referee.full_name,
-      };
-    }
-
-    if (
-      referee.suspension_until &&
-      new Date(referee.suspension_until) >= new Date(matchDate)
-    ) {
-      return {
-        available: false,
-        reason: `🚫 موقوف حتى ${new Date(referee.suspension_until).toLocaleDateString("ar-EG")}`,
-        fullName: referee.full_name,
-      };
-    }
-
-    let query = supabase
-      .from("matches")
-      .select(
-        "id, match_date, match_time, main_referee_id, fourth_referee_id, assistant1_referee_id, assistant2_referee_id, var_referee_id, avar_referee_id"
-      )
-      .eq("match_date", matchDate)
-      .or(
-        `main_referee_id.eq.${refereeId},fourth_referee_id.eq.${refereeId},assistant1_referee_id.eq.${refereeId},assistant2_referee_id.eq.${refereeId},var_referee_id.eq.${refereeId},avar_referee_id.eq.${refereeId}`
-      );
-
-    if (excludeMatchId) {
-      query = query.neq("id", excludeMatchId);
-    }
-
-    const { data: conflicts, error: confError } = await query;
-
-    if (confError) throw confError;
-
-    if (conflicts && conflicts.length > 0) {
-      const matchDateTime = new Date(`${matchDate}T${matchTime}`);
-      for (const conflict of conflicts) {
-        const conflictDateTime = new Date(
-          `${conflict.match_date}T${conflict.match_time}`
-        );
-        const diffMinutes = Math.abs(
-          (matchDateTime - conflictDateTime) / (1000 * 60)
-        );
-
-        if (diffMinutes < 120) {
-          return {
-            available: false,
-            reason: `⚠️ مباراة أخرى في ${conflict.match_time} (باقي ${Math.round(diffMinutes)} دقيقة)`,
-            fullName: referee.full_name,
-          };
-        }
-      }
-    }
-
-    return { available: true, reason: "" };
-  } catch (error) {
-    console.error("Error checking referee availability:", error);
-    return { available: true, reason: "" };
-  }
-}
-
-async function populateRefereeDropdownsWithAvailability(
-  excludeRefereeId = null,
-  matchDate = null,
-  matchTime = null,
-  excludeMatchId = null
-) {
-  const mainSelect = document.getElementById("mainReferee");
-  const mainReferees = getRefereesByRole("main", excludeRefereeId);
-  mainSelect.innerHTML = '<option value="">اختر الحكم الرئيسي</option>';
-
-  for (const ref of mainReferees) {
-    const displayText = getRefereeDisplayText(ref);
-    let disabled = false;
-    let extraClass = "";
-    let extraText = "";
-
-    if (matchDate && matchTime) {
-      const availability = await checkRefereeAvailabilityForDropdown(
-        ref.id,
-        matchDate,
-        matchTime,
-        excludeMatchId
-      );
-      if (!availability.available) {
-        disabled = true;
-        extraClass = "text-danger opacity-50";
-        extraText = ` - ${availability.reason}`;
-      }
-    }
-
-    mainSelect.innerHTML += `
-            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
-                ${displayText}${extraText}
-            </option>
-        `;
-  }
-
-  const fourthSelect = document.getElementById("fourthReferee");
-  const fourthReferees = getRefereesByRole("main", excludeRefereeId);
-  fourthSelect.innerHTML = '<option value="">اختر الحكم الرابع</option>';
-
-  for (const ref of fourthReferees) {
-    const displayText = getRefereeDisplayText(ref);
-    let disabled = false;
-    let extraClass = "";
-    let extraText = "";
-
-    if (matchDate && matchTime) {
-      const availability = await checkRefereeAvailabilityForDropdown(
-        ref.id,
-        matchDate,
-        matchTime,
-        excludeMatchId
-      );
-      if (!availability.available) {
-        disabled = true;
-        extraClass = "text-danger opacity-50";
-        extraText = ` - ${availability.reason}`;
-      }
-    }
-
-    fourthSelect.innerHTML += `
-            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
-                ${displayText}${extraText}
-            </option>
-        `;
-  }
-
-  const assistant1Select = document.getElementById("assistant1");
-  const assistantReferees = getRefereesByRole("assistant", excludeRefereeId);
-  assistant1Select.innerHTML = '<option value="">اختر مساعد أول</option>';
-
-  for (const ref of assistantReferees) {
-    const displayText = getRefereeDisplayText(ref);
-    let disabled = false;
-    let extraClass = "";
-    let extraText = "";
-
-    if (matchDate && matchTime) {
-      const availability = await checkRefereeAvailabilityForDropdown(
-        ref.id,
-        matchDate,
-        matchTime,
-        excludeMatchId
-      );
-      if (!availability.available) {
-        disabled = true;
-        extraClass = "text-danger opacity-50";
-        extraText = ` - ${availability.reason}`;
-      }
-    }
-
-    assistant1Select.innerHTML += `
-            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
-                ${displayText}${extraText}
-            </option>
-        `;
-  }
-
-  const assistant2Select = document.getElementById("assistant2");
-  const assistantReferees2 = getRefereesByRole("assistant", excludeRefereeId);
-  assistant2Select.innerHTML = '<option value="">اختر مساعد ثاني</option>';
-
-  for (const ref of assistantReferees2) {
-    const displayText = getRefereeDisplayText(ref);
-    let disabled = false;
-    let extraClass = "";
-    let extraText = "";
-
-    if (matchDate && matchTime) {
-      const availability = await checkRefereeAvailabilityForDropdown(
-        ref.id,
-        matchDate,
-        matchTime,
-        excludeMatchId
-      );
-      if (!availability.available) {
-        disabled = true;
-        extraClass = "text-danger opacity-50";
-        extraText = ` - ${availability.reason}`;
-      }
-    }
-
-    assistant2Select.innerHTML += `
-            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
-                ${displayText}${extraText}
-            </option>
-        `;
-  }
-
-  const varSelect = document.getElementById("varReferee");
-  const varReferees = getRefereesByRole("var", excludeRefereeId);
-  varSelect.innerHTML = '<option value="">اختر حكم VAR</option>';
-
-  for (const ref of varReferees) {
-    const displayText = getRefereeDisplayText(ref);
-    let disabled = false;
-    let extraClass = "";
-    let extraText = "";
-
-    if (matchDate && matchTime) {
-      const availability = await checkRefereeAvailabilityForDropdown(
-        ref.id,
-        matchDate,
-        matchTime,
-        excludeMatchId
-      );
-      if (!availability.available) {
-        disabled = true;
-        extraClass = "text-danger opacity-50";
-        extraText = ` - ${availability.reason}`;
-      }
-    }
-
-    varSelect.innerHTML += `
-            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
-                ${displayText}${extraText}
-            </option>
-        `;
-  }
-
-  const avarSelect = document.getElementById("avarReferee");
-  const avarReferees = getRefereesByRole("avar", excludeRefereeId);
-  avarSelect.innerHTML = '<option value="">اختر حكم AVAR</option>';
-
-  for (const ref of avarReferees) {
-    const displayText = getRefereeDisplayText(ref);
-    let disabled = false;
-    let extraClass = "";
-    let extraText = "";
-
-    if (matchDate && matchTime) {
-      const availability = await checkRefereeAvailabilityForDropdown(
-        ref.id,
-        matchDate,
-        matchTime,
-        excludeMatchId
-      );
-      if (!availability.available) {
-        disabled = true;
-        extraClass = "text-danger opacity-50";
-        extraText = ` - ${availability.reason}`;
-      }
-    }
-
-    avarSelect.innerHTML += `
-            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
-                ${displayText}${extraText}
-            </option>
-        `;
-  }
-}
-
 function openAddMatchModal() {
   document.getElementById("matchModalTitle").textContent = "إضافة مباراة جديدة";
   document.getElementById("matchForm").reset();
@@ -1185,7 +1327,17 @@ function openAddMatchModal() {
   document.getElementById("avarContainer").style.display = "none";
 
   updateTeamDropdowns();
-  populateRefereeDropdownsWithAvailability();
+
+  // ✅ تحميل عدد مباريات الحكام (لو فيه مسابقة محددة)
+  const competitionId = document.getElementById("matchCompetition").value;
+  if (competitionId) {
+    loadRefereeMatchCounts(competitionId).then(() => {
+      populateRefereeDropdownsWithAvailability();
+    });
+  } else {
+    populateRefereeDropdownsWithAvailability();
+  }
+
   populateSupervisorDropdowns();
 
   const modal = new bootstrap.Modal(document.getElementById("matchModal"));
@@ -1203,13 +1355,19 @@ async function updateRefereeAvailability() {
   const matchDate = document.getElementById("matchDate").value;
   const matchTime = document.getElementById("matchTime").value;
   const matchId = document.getElementById("matchId").value || null;
+  const competitionId = document.getElementById("matchCompetition").value;
+
+  // ✅ تحديث عدد المباريات حسب المسابقة المختارة
+  if (competitionId) {
+    await loadRefereeMatchCounts(competitionId);
+  }
 
   if (matchDate && matchTime) {
     await populateRefereeDropdownsWithAvailability(
       null,
       matchDate,
       matchTime,
-      matchId
+      matchId,
     );
   }
 }
@@ -1239,13 +1397,18 @@ async function editMatch(id) {
     document.getElementById("homeTeam").value = data.home_team_id;
     document.getElementById("awayTeam").value = data.away_team_id;
 
+    // ✅ تحميل عدد المباريات للمسابقة المختارة
+    if (data.competition_id) {
+      await loadRefereeMatchCounts(data.competition_id);
+    }
+
     populateRefereeDropdownsWithExclusions(
       data.main_referee_id,
       data.fourth_referee_id,
       data.assistant1_referee_id,
       data.assistant2_referee_id,
       data.var_referee_id,
-      data.avar_referee_id
+      data.avar_referee_id,
     );
 
     document.getElementById("mainReferee").value = data.main_referee_id || "";
@@ -1361,7 +1524,7 @@ async function saveMatch() {
           refId,
           matchData.match_date,
           matchData.match_time,
-          id || null
+          id || null,
         );
 
         if (conflictResult.hasConflict) {
@@ -1415,7 +1578,7 @@ async function saveMatch() {
     });
 
     const modal = bootstrap.Modal.getInstance(
-      document.getElementById("matchModal")
+      document.getElementById("matchModal"),
     );
     modal.hide();
 
@@ -1483,7 +1646,7 @@ async function openExcuseModal(matchId) {
                 assistant2:referees!matches_assistant2_referee_id_fkey(id, full_name),
                 var_referee:referees!matches_var_referee_id_fkey(id, full_name),
                 avar_referee:referees!matches_avar_referee_id_fkey(id, full_name)
-            `
+            `,
       )
       .eq("id", matchId)
       .single();
@@ -1674,7 +1837,7 @@ async function saveExcuse() {
     });
 
     const modal = bootstrap.Modal.getInstance(
-      document.getElementById("excuseModal")
+      document.getElementById("excuseModal"),
     );
     modal.hide();
 
@@ -1701,7 +1864,7 @@ async function viewMatchDetails(id) {
         `
                 *,
                 referees!inner(full_name)
-            `
+            `,
       )
       .eq("match_id", id)
       .order("created_at", { ascending: false });
@@ -1714,7 +1877,7 @@ async function viewMatchDetails(id) {
         `
                 *,
                 referees!inner(full_name)
-            `
+            `,
       )
       .eq("match_id", id)
       .order("created_at", { ascending: false });
@@ -1829,7 +1992,7 @@ async function viewMatchDetails(id) {
                                             <td>${new Date(item.excuse_date).toLocaleDateString("ar-EG")}</td>
                                             <td>${item.notes || "-"}</td>
                                         </tr>
-                                    `
+                                    `,
                                       )
                                       .join("")}
                                 </tbody>
@@ -1871,7 +2034,7 @@ async function viewMatchDetails(id) {
                                             </td>
                                             <td>${item.notes || "-"}</td>
                                         </tr>
-                                    `
+                                    `,
                                       )
                                       .join("")}
                                 </tbody>
@@ -1885,7 +2048,7 @@ async function viewMatchDetails(id) {
         `;
 
     const modal = new bootstrap.Modal(
-      document.getElementById("matchDetailsModal")
+      document.getElementById("matchDetailsModal"),
     );
     modal.show();
   } catch (error) {

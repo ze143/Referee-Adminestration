@@ -943,7 +943,7 @@ function renderMatches(matches) {
   if (!matches || matches.length === 0) {
     tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="text-center py-4 text-muted">
+                <td colspan="9" class="text-center py-4 text-muted">
                     <i class="fas fa-info-circle me-2"></i>لا توجد مباريات
                 </td>
             </tr>
@@ -982,6 +982,7 @@ function renderMatches(matches) {
     };
 
     tr.innerHTML = `
+            <td>${match.competitions?.name || "-"}</td>
             <td>${new Date(match.match_date).toLocaleDateString("ar-EG")}</td>
             <td>${formatTime(match.match_time)}</td>
             <td>${match.stadium}</td>

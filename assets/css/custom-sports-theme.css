@@ -617,7 +617,6 @@ body {
    ============================================ */
 .form-control,
 .form-select {
-  background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--glass-border);
   border-radius: var(--border-radius-sm);
   padding: 10px 16px;

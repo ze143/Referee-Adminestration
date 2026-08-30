@@ -397,7 +397,7 @@ function getRefereeDisplayText(referee) {
     "2nd": "درجة ثانية",
     "3rd": "درجة ثالثة",
     International: "دولي",
-    New: "جديد",
+    New: "جدد",
   };
 
   let label = referee.full_name;

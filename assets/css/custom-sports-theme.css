@@ -2525,3 +2525,70 @@ body {
         min-width: 100%;
     }
 }
+/* ✅ تحسين عرض أعمدة الجدول */
+#matchesTable th,
+#matchesTable td {
+    white-space: nowrap;
+    padding: 6px 8px;
+}
+
+/* ✅ عمود الحكام ياخد مساحة أكبر */
+#matchesTable th:nth-child(7),
+#matchesTable td:nth-child(7) {
+    min-width: 280px;
+    max-width: 400px;
+    white-space: normal;
+}
+
+/* ✅ تصغير حجم الخط في خانات الحكام */
+.referee-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: 0.75rem;
+}
+
+.referee-badges .badge {
+    font-size: 0.7rem;
+    padding: 3px 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.referee-badges .referee-name {
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+}
+
+/* ✅ تصغير الأزرار */
+.btn-notify {
+    padding: 1px 4px;
+    font-size: 0.65rem;
+    border-radius: 4px;
+}
+
+/* ✅ تقليل عرض الأعمدة الصغيرة */
+#matchesTable td:nth-child(1), /* المسابقة */
+#matchesTable td:nth-child(2), /* التاريخ */
+#matchesTable td:nth-child(3), /* الوقت */
+#matchesTable td:nth-child(4), /* الملعب */
+#matchesTable td:nth-child(5), /* الفريق المضيف */
+#matchesTable td:nth-child(6) { /* الفريق الضيف */
+    font-size: 0.8rem;
+}
+
+/* ✅ عمود الإجراءات */
+#matchesTable td:last-child .btn-group {
+    display: flex;
+    gap: 2px;
+    flex-wrap: nowrap;
+}
+
+#matchesTable td:last-child .btn {
+    padding: 2px 5px;
+    font-size: 0.7rem;
+}

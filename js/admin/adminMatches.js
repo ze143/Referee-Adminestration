@@ -989,66 +989,66 @@ function renderMatches(matches) {
             <td><strong>${match.home_team?.name || "-"}</strong></td>
             <td><strong>${match.away_team?.name || "-"}</strong></td>
             <td>
-                <div class="referee-badges">
-                    <span class="badge bg-primary" title="رئيسي">
-                        <i class="fa fa-flag-checkered role-icon"></i>
-                        <span class="referee-name">${refName(mainRef)}</span>
-                        ${notifyButton("main", match.main_referee_notified)}
-                    </span>
-                    
-                    <span class="badge bg-success" title="مساعد 1">
-                        <i class="fas fa-flag role-icon"></i>
-                        <span class="referee-name">${refName(asst1)}</span>
-                        ${notifyButton("assistant1", match.assistant1_notified)}
-                    </span>
-                    
-                    <span class="badge bg-success" title="مساعد 2">
-                        <i class="fas fa-flag role-icon"></i>
-                        <span class="referee-name">${refName(asst2)}</span>
-                        ${notifyButton("assistant2", match.assistant2_notified)}
-                    </span>
-                    
-                    <span class="badge bg-warning" title="رابع">
-                        <i class="fas fa-clipboard role-icon"></i>
-                        <span class="referee-name">${refName(fourthRef)}</span>
-                        ${notifyButton("fourth", match.fourth_referee_notified)}
-                    </span>
-                    
-                    ${
-                      varRef !== "-"
-                        ? `
-                        <span class="badge bg-danger" title="VAR">
-                            <i class="fas fa-video role-icon"></i>
-                            <span class="referee-name">${refName(varRef)}</span>
-                            ${notifyButton("var", match.var_referee_notified)}
-                        </span>
-                    `
-                        : ""
-                    }
-                    
-                    ${
-                      avarRef !== "-"
-                        ? `
-                        <span class="badge bg-danger" title="AVAR">
-                            <i class="fas fa-video role-icon"></i>
-                            <span class="referee-name">${refName(avarRef)}</span>
-                            ${notifyButton("avar", match.avar_referee_notified)}
-                        </span>
-                    `
-                        : ""
-                    }
-                    
-                    ${
-                      supervisor !== "-"
-                        ? `
-                        <span class="badge bg-secondary" title="مراقب">
-                            <i class="fas fa-eye role-icon"></i>
-                            <span class="referee-name">${refName(supervisor)}</span>
-                        </span>
-                    `
-                        : ""
-                    }
-                </div>
+               <div class="referee-badges">
+    <span class="badge bg-primary" title="رئيسي">
+        <i class="fa fa-flag-checkered role-icon"></i>
+        <span class="referee-name">${refName(mainRef)}</span>
+        ${notifyButton("main", match.main_referee_notified)}
+    </span>
+    
+    <span class="badge bg-success" title="مساعد 1">
+        <i class="fas fa-flag role-icon"></i>
+        <span class="referee-name">${refName(asst1)}</span>
+        ${notifyButton("assistant1", match.assistant1_notified)}
+    </span>
+    
+    <span class="badge bg-success" title="مساعد 2">
+        <i class="fas fa-flag role-icon"></i>
+        <span class="referee-name">${refName(asst2)}</span>
+        ${notifyButton("assistant2", match.assistant2_notified)}
+    </span>
+    
+    <span class="badge bg-warning" title="رابع">
+        <i class="fas fa-clipboard role-icon"></i>
+        <span class="referee-name">${refName(fourthRef)}</span>
+        ${notifyButton("fourth", match.fourth_referee_notified)}
+    </span>
+    
+    ${
+      varRef !== "-"
+        ? `
+        <span class="badge bg-danger" title="VAR">
+            <i class="fas fa-video role-icon"></i>
+            <span class="referee-name">${refName(varRef)}</span>
+            ${notifyButton("var", match.var_referee_notified)}
+        </span>
+    `
+        : ""
+    }
+    
+    ${
+      avarRef !== "-"
+        ? `
+        <span class="badge bg-danger" title="AVAR">
+            <i class="fas fa-video role-icon"></i>
+            <span class="referee-name">${refName(avarRef)}</span>
+            ${notifyButton("avar", match.avar_referee_notified)}
+        </span>
+    `
+        : ""
+    }
+    
+    ${
+      supervisor !== "-"
+        ? `
+        <span class="badge bg-secondary" title="مراقب">
+            <i class="fas fa-eye role-icon"></i>
+            <span class="referee-name">${refName(supervisor)}</span>
+        </span>
+    `
+        : ""
+    }
+</div>
             </td>
             <td title="${match.notes || ""}">${match.notes ? (match.notes.length > 20 ? match.notes.substring(0, 18) + "…" : match.notes) : "-"}</td>
             <td>

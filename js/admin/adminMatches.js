@@ -145,6 +145,7 @@ async function init() {
     // ✅ تعيين القيم الافتراضية للفلاتر
     document.getElementById("filterSort").value = "oldest";
     document.getElementById("filterNotified").value = "";
+    document.getElementById("filterStatus").value = "upcoming";
   } catch (error) {
     console.error("Init error:", error);
     Swal.fire({

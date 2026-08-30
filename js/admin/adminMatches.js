@@ -951,7 +951,49 @@ function renderMatches(matches) {
     return;
   }
 
-  matches.forEach((match) => {
+  // ✅ ترتيب المباريات حسب التاريخ
+  const sortedMatches = [...matches].sort((a, b) => {
+    return new Date(a.match_date) - new Date(b.match_date);
+  });
+
+  let currentDate = null;
+
+  sortedMatches.forEach((match) => {
+    const matchDate = match.match_date;
+
+    // ✅ إضافة فاصل التاريخ مع عدد المباريات
+    if (currentDate !== matchDate) {
+      currentDate = matchDate;
+
+      // ✅ حساب عدد المباريات في هذا اليوم
+      const matchesCount = sortedMatches.filter(
+        (m) => m.match_date === matchDate,
+      ).length;
+      const countText =
+        matchesCount > 1 ? `(${matchesCount} مباريات)` : `(مباراة واحدة)`;
+
+      const dateRow = document.createElement("tr");
+      dateRow.className = "date-divider";
+      dateRow.innerHTML = `
+                <td colspan="9" class="text-center">
+                    <div class="date-divider-content">
+                        <span class="date-divider-text">
+                            ${new Date(matchDate).toLocaleDateString("ar-EG", {
+                              weekday: "long",
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })}
+                            <span class="matches-count">${countText}</span>
+                        </span>
+                        
+                    </div>
+                </td>
+            `;
+      tbody.appendChild(dateRow);
+    }
+
+    // ✅ صف المباراة
     const tr = document.createElement("tr");
 
     const mainRef = match.main_referee?.full_name || "-";
@@ -978,7 +1020,7 @@ function renderMatches(matches) {
 
     const refName = (name) => {
       if (name === "-" || name === "غير معين") return name;
-      return name.length > 14 ? name.substring(0, 12) + "…" : name;
+      return name.length > 10 ? name.substring(0, 8) + "…" : name;
     };
 
     tr.innerHTML = `
@@ -989,66 +1031,66 @@ function renderMatches(matches) {
             <td><strong>${match.home_team?.name || "-"}</strong></td>
             <td><strong>${match.away_team?.name || "-"}</strong></td>
             <td>
-               <div class="referee-badges">
-    <span class="badge bg-primary" title="رئيسي">
-        <i class="fa fa-flag-checkered role-icon"></i>
-        <span class="referee-name">${refName(mainRef)}</span>
-        ${notifyButton("main", match.main_referee_notified)}
-    </span>
-    
-    <span class="badge bg-success" title="مساعد 1">
-        <i class="fas fa-flag role-icon"></i>
-        <span class="referee-name">${refName(asst1)}</span>
-        ${notifyButton("assistant1", match.assistant1_notified)}
-    </span>
-    
-    <span class="badge bg-success" title="مساعد 2">
-        <i class="fas fa-flag role-icon"></i>
-        <span class="referee-name">${refName(asst2)}</span>
-        ${notifyButton("assistant2", match.assistant2_notified)}
-    </span>
-    
-    <span class="badge bg-warning" title="رابع">
-        <i class="fas fa-clipboard role-icon"></i>
-        <span class="referee-name">${refName(fourthRef)}</span>
-        ${notifyButton("fourth", match.fourth_referee_notified)}
-    </span>
-    
-    ${
-      varRef !== "-"
-        ? `
-        <span class="badge bg-danger" title="VAR">
-            <i class="fas fa-video role-icon"></i>
-            <span class="referee-name">${refName(varRef)}</span>
-            ${notifyButton("var", match.var_referee_notified)}
-        </span>
-    `
-        : ""
-    }
-    
-    ${
-      avarRef !== "-"
-        ? `
-        <span class="badge bg-danger" title="AVAR">
-            <i class="fas fa-video role-icon"></i>
-            <span class="referee-name">${refName(avarRef)}</span>
-            ${notifyButton("avar", match.avar_referee_notified)}
-        </span>
-    `
-        : ""
-    }
-    
-    ${
-      supervisor !== "-"
-        ? `
-        <span class="badge bg-secondary" title="مراقب">
-            <i class="fas fa-eye role-icon"></i>
-            <span class="referee-name">${refName(supervisor)}</span>
-        </span>
-    `
-        : ""
-    }
-</div>
+                <div class="referee-badges">
+                    <span class="badge bg-primary" title="رئيسي">
+                        <i class="fa fa-flag-checkered role-icon"></i>
+                        <span class="referee-name">${refName(mainRef)}</span>
+                        ${notifyButton("main", match.main_referee_notified)}
+                    </span>
+                    
+                    <span class="badge bg-success" title="مساعد 1">
+                        <i class="fas fa-flag role-icon"></i>
+                        <span class="referee-name">${refName(asst1)}</span>
+                        ${notifyButton("assistant1", match.assistant1_notified)}
+                    </span>
+                    
+                    <span class="badge bg-success" title="مساعد 2">
+                        <i class="fas fa-flag role-icon"></i>
+                        <span class="referee-name">${refName(asst2)}</span>
+                        ${notifyButton("assistant2", match.assistant2_notified)}
+                    </span>
+                    
+                    <span class="badge bg-warning" title="رابع">
+                        <i class="fas fa-clipboard role-icon"></i>
+                        <span class="referee-name">${refName(fourthRef)}</span>
+                        ${notifyButton("fourth", match.fourth_referee_notified)}
+                    </span>
+                    
+                    ${
+                      varRef !== "-"
+                        ? `
+                        <span class="badge bg-danger" title="VAR">
+                            <i class="fas fa-video role-icon"></i>
+                            <span class="referee-name">${refName(varRef)}</span>
+                            ${notifyButton("var", match.var_referee_notified)}
+                        </span>
+                    `
+                        : ""
+                    }
+                    
+                    ${
+                      avarRef !== "-"
+                        ? `
+                        <span class="badge bg-danger" title="AVAR">
+                            <i class="fas fa-video role-icon"></i>
+                            <span class="referee-name">${refName(avarRef)}</span>
+                            ${notifyButton("avar", match.avar_referee_notified)}
+                        </span>
+                    `
+                        : ""
+                    }
+                    
+                    ${
+                      supervisor !== "-"
+                        ? `
+                        <span class="badge bg-secondary" title="مراقب">
+                            <i class="fas fa-eye role-icon"></i>
+                            <span class="referee-name">${refName(supervisor)}</span>
+                        </span>
+                    `
+                        : ""
+                    }
+                </div>
             </td>
             <td title="${match.notes || ""}">${match.notes ? (match.notes.length > 20 ? match.notes.substring(0, 18) + "…" : match.notes) : "-"}</td>
             <td>
@@ -1081,6 +1123,7 @@ function renderMatches(matches) {
     tbody.appendChild(tr);
   });
 
+  // ✅ إضافة المستمعات
   document.querySelectorAll(".view-match").forEach((btn) => {
     btn.addEventListener("click", () => viewMatchDetails(btn.dataset.id));
   });

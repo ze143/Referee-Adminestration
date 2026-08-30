@@ -2592,3 +2592,67 @@ body {
     padding: 2px 5px;
     font-size: 0.7rem;
 }
+
+/* ✅ فاصل التواريخ */
+.date-divider td {
+    padding: 12px 0 !important;
+    background: transparent !important;
+    border: none !important;
+}
+
+.date-divider-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    padding: 8px 0;
+}
+
+.date-divider-text {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #2c3e50;
+    background: linear-gradient(135deg, #3498db, #2ecc71);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    padding: 0 20px;
+    white-space: nowrap;
+}
+
+.date-divider-line {
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(to right, #3498db, #2ecc71);
+    border-radius: 2px;
+    max-width: 200px;
+}
+
+/* ✅ تنسيق أيام الأسبوع */
+.date-divider-text .day-name {
+    font-weight: 400;
+    font-size: 0.9rem;
+    color: #7f8c8d;
+    -webkit-text-fill-color: #7f8c8d;
+}
+
+/* ✅ تحسين شكل الجدول */
+#matchesTable tbody tr:not(.date-divider):hover {
+    background-color: #f8f9fa;
+    transition: background-color 0.2s;
+}
+
+/* ✅ تظليل خفيف للمباريات في نفس اليوم */
+#matchesTable tbody tr:not(.date-divider) {
+    border-bottom: 1px solid #ecf0f1;
+}
+
+#matchesTable tbody tr:not(.date-divider):last-child {
+    border-bottom: 2px solid #3498db;
+}
+.matches-count {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: #7f8c8d;
+    -webkit-text-fill-color: #7f8c8d;
+}

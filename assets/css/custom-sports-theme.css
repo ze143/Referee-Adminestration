@@ -625,7 +625,7 @@ body {
 
 .form-control:focus,
 .form-select:focus {
-  background: rgba(255, 255, 255, 0.09);
+  
   border-color: var(--primary-emerald);
   box-shadow: 0 0 0 3px rgba(0, 200, 83, 0.15);
 }
@@ -2155,25 +2155,25 @@ body {
 /* ✅ عمود الملعب */
 #matchesTable th:nth-child(3),
 #matchesTable td:nth-child(3) {
-  min-width: 90px;
+  min-width: 80px;
 }
 
 /* ✅ عمود المضيف */
 #matchesTable th:nth-child(4),
 #matchesTable td:nth-child(4) {
-  min-width: 90px;
+  min-width: 80px;
 }
 
 /* ✅ عمود الضيف */
 #matchesTable th:nth-child(5),
 #matchesTable td:nth-child(5) {
-  min-width: 90px;
+  min-width: 80px;
 }
 
 /* ✅ عمود طاقم الحكام - مساحة كافية لاسم كامل */
 #matchesTable th:nth-child(6),
 #matchesTable td:nth-child(6) {
-  min-width: 300px;
+  min-width: 120px;
   width: 300px;
   max-width: 320px;
 }
@@ -2208,7 +2208,6 @@ body {
 
 .referee-badges .badge {
   font-size: 0.75rem !important;
-  padding: 4px 10px !important;
   font-weight: 500;
   display: flex !important;
   align-items: center;

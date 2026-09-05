@@ -1,4 +1,4 @@
-// adminMatches.js - النسخة النهائية مع تنسيق الوقت 12 ساعة وإظهار درجة الحكم ومنع الموقوفين والمتعارضين
+// adminMatches.js - النسخة النهائية مع تنسيق الوقت 12 ساعة وإظهار درجة الحكم ومنع الموقوفين والمتعارضين + Select2
 import { supabase } from "../supabaseClient.js";
 import { requireAuth, logout } from "../auth.js";
 import {
@@ -44,6 +44,79 @@ function formatTime(timeString) {
     return `${hours}.${minutes} ${ampm}`;
   } catch (e) {
     return timeString;
+  }
+}
+
+// ✅ تفعيل Select2 على جميع دروب داون الحكام
+function initSelect2() {
+  // تأكد من وجود jQuery و Select2
+  if (typeof $ === "undefined" || typeof $.fn.select2 === "undefined") {
+    console.warn("Select2 not loaded");
+    return;
+  }
+
+  const selects = document.querySelectorAll("#matchForm .select2");
+  selects.forEach((select) => {
+    try {
+      // تدمير الـ instance القديم بشكل صحيح
+      if ($(select).data("select2")) {
+        $(select).select2("destroy");
+      }
+
+      // إزالة أي class قديمة
+      $(select).removeClass("select2-hidden-accessible");
+      $(select).next(".select2-container").remove();
+
+      $(select).select2({
+        theme: "bootstrap-5",
+        width: "100%",
+        placeholder: $(select).find("option:first").text() || "اختر...",
+        allowClear: true,
+        language: {
+          searching: function () {
+            return "جاري البحث...";
+          },
+          noResults: function () {
+            return "لا توجد نتائج";
+          },
+        },
+        dropdownParent: $("#matchModal"), // ✅ لمنع ظهور القائمة خلف المودال
+      });
+    } catch (e) {
+      console.warn("Error initializing Select2 for:", select.id, e);
+    }
+  });
+
+  // ✅ تفعيل التركيز التلقائي عند النقر على أي دروب داون
+  setTimeout(() => {
+    const selects = document.querySelectorAll("#matchForm .select2");
+    selects.forEach((select) => {
+      // إزالة المستمعات القديمة
+      $(select).off("select2:open");
+
+      // عند فتح القائمة، ركز على مربع البحث
+      $(select).on("select2:open", function (e) {
+        setTimeout(() => {
+          const searchInput = document.querySelector(".select2-search__field");
+          if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+          }
+        }, 50);
+      });
+    });
+  }, 300);
+}
+
+// ✅ دالة مساعدة لتحديث قيمة Select2
+function setSelect2Value(selectId, value) {
+  const select = document.getElementById(selectId);
+  if (select) {
+    select.value = value || "";
+    // تأكد من أن Select2 موجود
+    if ($(select).data("select2")) {
+      $(select).trigger("change");
+    }
   }
 }
 
@@ -468,6 +541,9 @@ function populateRefereeDropdowns(excludeRefereeId = null) {
     const label = getRefereeDisplayText(ref);
     avarSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
+
+  // ✅ تفعيل Select2 بعد التعبئة
+  initSelect2();
 }
 
 function populateRefereeDropdownsWithExclusions(
@@ -552,6 +628,9 @@ function populateRefereeDropdownsWithExclusions(
     const label = getRefereeDisplayText(ref);
     avarSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
+
+  // ✅ تفعيل Select2 بعد التعبئة
+  initSelect2();
 }
 
 function populateSupervisorDropdowns() {
@@ -931,6 +1010,9 @@ async function populateRefereeDropdownsWithAvailability(
             </option>
         `;
   }
+
+  // ✅ تفعيل Select2 بعد التعبئة
+  initSelect2();
 }
 
 // ============================================
@@ -1025,101 +1107,101 @@ function renderMatches(matches) {
     };
 
     tr.innerHTML = `
-            <td>${match.competitions?.name || "-"}</td>
-            <td>${new Date(match.match_date).toLocaleDateString("ar-EG")}</td>
-            <td>${formatTime(match.match_time)}</td>
-            <td>${match.stadium}</td>
-            <td><strong>${match.home_team?.name || "-"}</strong></td>
-            <td><strong>${match.away_team?.name || "-"}</strong></td>
-            <td>
-                <div class="referee-badges">
-                    <span class="badge bg-primary" title="رئيسي">
-                        <i class="fa fa-flag-checkered role-icon"></i>
-                        <span class="referee-name">${refName(mainRef)}</span>
-                        ${notifyButton("main", match.main_referee_notified)}
-                    </span>
-                    
-                    <span class="badge bg-success" title="مساعد 1">
-                        <i class="fas fa-flag role-icon"></i>
-                        <span class="referee-name">${refName(asst1)}</span>
-                        ${notifyButton("assistant1", match.assistant1_notified)}
-                    </span>
-                    
-                    <span class="badge bg-success" title="مساعد 2">
-                        <i class="fas fa-flag role-icon"></i>
-                        <span class="referee-name">${refName(asst2)}</span>
-                        ${notifyButton("assistant2", match.assistant2_notified)}
-                    </span>
-                    
-                    <span class="badge bg-warning" title="رابع">
-                        <i class="fas fa-clipboard role-icon"></i>
-                        <span class="referee-name">${refName(fourthRef)}</span>
-                        ${notifyButton("fourth", match.fourth_referee_notified)}
-                    </span>
-                    
-                    ${
-                      varRef !== "-"
-                        ? `
-                        <span class="badge bg-danger" title="VAR">
-                            <i class="fas fa-video role-icon"></i>
-                            <span class="referee-name">${refName(varRef)}</span>
-                            ${notifyButton("var", match.var_referee_notified)}
-                        </span>
-                    `
-                        : ""
-                    }
-                    
-                    ${
-                      avarRef !== "-"
-                        ? `
-                        <span class="badge bg-danger" title="AVAR">
-                            <i class="fas fa-video role-icon"></i>
-                            <span class="referee-name">${refName(avarRef)}</span>
-                            ${notifyButton("avar", match.avar_referee_notified)}
-                        </span>
-                    `
-                        : ""
-                    }
-                    
-                    ${
-                      supervisor !== "-"
-                        ? `
-                        <span class="badge bg-secondary" title="مراقب">
-                            <i class="fas fa-eye role-icon"></i>
-                            <span class="referee-name">${refName(supervisor)}</span>
-                        </span>
-                    `
-                        : ""
-                    }
-                </div>
-            </td>
-            <td title="${match.notes || ""}">${match.notes ? (match.notes.length > 20 ? match.notes.substring(0, 18) + "…" : match.notes) : "-"}</td>
-            <td>
-                <div class="btn-group" role="group">
-                    <button class="btn btn-sm btn-outline-primary view-match" data-id="${match.id}" title="عرض التفاصيل">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-warning edit-match" data-id="${match.id}" title="تعديل">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    ${
-                      match.main_referee_id
-                        ? `
-                        <button class="btn btn-sm btn-outline-success notify-all" data-id="${match.id}" title="تبليغ جميع الحكام">
-                            <i class="fas fa-bell"></i>
-                        </button>
-                    `
-                        : ""
-                    }
-                    <button class="btn btn-sm btn-outline-danger excuse-match" data-id="${match.id}" title="تسجيل اعتذار">
-                        <i class="fas fa-user-times"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger delete-match" data-id="${match.id}" title="حذف">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
-        `;
+    <td>${match.competitions?.name || "-"}</td>
+    <td>${new Date(match.match_date).toLocaleDateString("ar-EG")}</td>
+    <td>${formatTime(match.match_time)}</td>
+    <td>${match.stadium}</td>
+    <td><strong>${match.home_team?.name || "-"}</strong></td>
+    <td><strong>${match.away_team?.name || "-"}</strong></td>
+    <td>
+        <div class="referee-badges">
+            <span class="badge bg-primary" title="رئيسي">
+                <i class="fa fa-flag-checkered role-icon"></i>
+                <span class="referee-name" title="${mainRef}">${refName(mainRef)}</span>
+                ${notifyButton("main", match.main_referee_notified)}
+            </span>
+            
+            <span class="badge bg-success" title="مساعد 1">
+                <i class="fas fa-flag role-icon"></i>
+                <span class="referee-name" title="${asst1}">${refName(asst1)}</span>
+                ${notifyButton("assistant1", match.assistant1_notified)}
+            </span>
+            
+            <span class="badge bg-success" title="مساعد 2">
+                <i class="fas fa-flag role-icon"></i>
+                <span class="referee-name" title="${asst2}">${refName(asst2)}</span>
+                ${notifyButton("assistant2", match.assistant2_notified)}
+            </span>
+            
+            <span class="badge bg-warning" title="رابع">
+                <i class="fas fa-clipboard role-icon"></i>
+                <span class="referee-name" title="${fourthRef}">${refName(fourthRef)}</span>
+                ${notifyButton("fourth", match.fourth_referee_notified)}
+            </span>
+            
+            ${
+              varRef !== "-"
+                ? `
+                <span class="badge bg-danger" title="VAR">
+                    <i class="fas fa-video role-icon"></i>
+                    <span class="referee-name" title="${varRef}">${refName(varRef)}</span>
+                    ${notifyButton("var", match.var_referee_notified)}
+                </span>
+            `
+                : ""
+            }
+            
+            ${
+              avarRef !== "-"
+                ? `
+                <span class="badge bg-danger" title="AVAR">
+                    <i class="fas fa-video role-icon"></i>
+                    <span class="referee-name" title="${avarRef}">${refName(avarRef)}</span>
+                    ${notifyButton("avar", match.avar_referee_notified)}
+                </span>
+            `
+                : ""
+            }
+            
+            ${
+              supervisor !== "-"
+                ? `
+                <span class="badge bg-secondary" title="مراقب">
+                    <i class="fas fa-eye role-icon"></i>
+                    <span class="referee-name" title="${supervisor}">${refName(supervisor)}</span>
+                </span>
+            `
+                : ""
+            }
+        </div>
+    </td>
+    <td title="${match.notes || ""}">${match.notes ? (match.notes.length > 20 ? match.notes.substring(0, 18) + "…" : match.notes) : "-"}</td>
+    <td>
+        <div class="btn-group" role="group">
+            <button class="btn btn-sm btn-outline-primary view-match" data-id="${match.id}" title="عرض التفاصيل">
+                <i class="fas fa-eye"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-warning edit-match" data-id="${match.id}" title="تعديل">
+                <i class="fas fa-edit"></i>
+            </button>
+            ${
+              match.main_referee_id
+                ? `
+                <button class="btn btn-sm btn-outline-success notify-all" data-id="${match.id}" title="تبليغ جميع الحكام">
+                    <i class="fas fa-bell"></i>
+                </button>
+            `
+                : ""
+            }
+            <button class="btn btn-sm btn-outline-danger excuse-match" data-id="${match.id}" title="تسجيل اعتذار">
+                <i class="fas fa-user-times"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger delete-match" data-id="${match.id}" title="حذف">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </td>
+`;
 
     tbody.appendChild(tr);
   });
@@ -1378,9 +1460,15 @@ function openAddMatchModal() {
   if (competitionId) {
     loadRefereeMatchCounts(competitionId).then(() => {
       populateRefereeDropdownsWithAvailability();
+      setTimeout(() => {
+        initSelect2();
+      }, 300);
     });
   } else {
     populateRefereeDropdownsWithAvailability();
+    setTimeout(() => {
+      initSelect2();
+    }, 300);
   }
 
   populateSupervisorDropdowns();
@@ -1415,6 +1503,9 @@ async function updateRefereeAvailability() {
       matchId,
     );
   }
+
+  // ✅ إعادة تفعيل Select2 بعد التحديث
+  setTimeout(() => initSelect2(), 200);
 }
 
 async function editMatch(id) {
@@ -1456,15 +1547,6 @@ async function editMatch(id) {
       data.avar_referee_id,
     );
 
-    document.getElementById("mainReferee").value = data.main_referee_id || "";
-    document.getElementById("fourthReferee").value =
-      data.fourth_referee_id || "";
-    document.getElementById("assistant1").value =
-      data.assistant1_referee_id || "";
-    document.getElementById("assistant2").value =
-      data.assistant2_referee_id || "";
-    document.getElementById("varReferee").value = data.var_referee_id || "";
-    document.getElementById("avarReferee").value = data.avar_referee_id || "";
     document.getElementById("supervisorReferee").value =
       data.supervisor_id || "";
 
@@ -1473,6 +1555,19 @@ async function editMatch(id) {
 
     const modal = new bootstrap.Modal(document.getElementById("matchModal"));
     modal.show();
+
+    // ✅ تفعيل Select2 وتعيين القيم بعد فتح المودال
+    setTimeout(() => {
+      initSelect2();
+
+      // ✅ تعيين القيم في Select2 بعد التفعيل
+      setSelect2Value("mainReferee", data.main_referee_id);
+      setSelect2Value("fourthReferee", data.fourth_referee_id);
+      setSelect2Value("assistant1", data.assistant1_referee_id);
+      setSelect2Value("assistant2", data.assistant2_referee_id);
+      setSelect2Value("varReferee", data.var_referee_id);
+      setSelect2Value("avarReferee", data.avar_referee_id);
+    }, 300);
   } catch (error) {
     console.error("Error loading match for edit:", error);
     Swal.fire({

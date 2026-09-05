@@ -324,9 +324,9 @@ async function viewSupervisorMatches(id, name) {
 }
 
 // ============================================
-// ✅ دالة renderSupervisors - مع إضافة الأزرار الجديدة
+// ✅ دالة renderSupervisors - مع حساب عدد المباريات
 // ============================================
-function renderSupervisors(supervisors) {
+async function renderSupervisors(supervisors) {
     const tbody = document.getElementById('supervisorsBody');
     tbody.innerHTML = '';
 
@@ -341,45 +341,67 @@ function renderSupervisors(supervisors) {
         return;
     }
 
-    supervisors.forEach(sup => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td><strong>${sup.full_name}</strong></td>
-            <td>${sup.phone || '-'}</td>
-            <td><span class="badge bg-info">0</span></td>
-            <td>
-                <div class="btn-group" role="group">
-                    <button class="btn btn-sm btn-outline-primary view-supervisor" data-id="${sup.id}" title="عرض البيانات">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-info matches-supervisor" data-id="${sup.id}" data-name="${sup.full_name}" title="المباريات التي راقبها">
-                        <i class="fas fa-calendar-alt"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-warning edit-supervisor" data-id="${sup.id}" title="تعديل">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger delete-supervisor" data-id="${sup.id}" title="حذف">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
+    try {
+        // ✅ جلب جميع المباريات مرة واحدة لحساب الأعداد
+        const { data: allMatches, error } = await supabase
+            .from('matches')
+            .select('supervisor_id');
 
-    // Event listeners
-    document.querySelectorAll('.view-supervisor').forEach(btn => {
-        btn.addEventListener('click', () => viewSupervisorDetails(btn.dataset.id));
-    });
-    document.querySelectorAll('.matches-supervisor').forEach(btn => {
-        btn.addEventListener('click', () => viewSupervisorMatches(btn.dataset.id, btn.dataset.name));
-    });
-    document.querySelectorAll('.edit-supervisor').forEach(btn => {
-        btn.addEventListener('click', () => editSupervisor(btn.dataset.id));
-    });
-    document.querySelectorAll('.delete-supervisor').forEach(btn => {
-        btn.addEventListener('click', () => deleteSupervisor(btn.dataset.id));
-    });
+        if (error) throw error;
+
+        // ✅ حساب عدد المباريات لكل مراقب
+        const matchCounts = {};
+        allMatches.forEach(match => {
+            if (match.supervisor_id) {
+                matchCounts[match.supervisor_id] = (matchCounts[match.supervisor_id] || 0) + 1;
+            }
+        });
+
+        supervisors.forEach(sup => {
+            const matchCount = matchCounts[sup.id] || 0;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${sup.full_name}</strong></td>
+                <td>${sup.phone || '-'}</td>
+                <td><span class="badge ${matchCount > 0 ? 'bg-success' : 'bg-secondary'}">${matchCount}</span></td>
+                <td>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-outline-primary view-supervisor" data-id="${sup.id}" title="عرض البيانات">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-info matches-supervisor" data-id="${sup.id}" data-name="${sup.full_name}" title="المباريات التي راقبها">
+                            <i class="fas fa-calendar-alt"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning edit-supervisor" data-id="${sup.id}" title="تعديل">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger delete-supervisor" data-id="${sup.id}" title="حذف">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Event listeners
+        document.querySelectorAll('.view-supervisor').forEach(btn => {
+            btn.addEventListener('click', () => viewSupervisorDetails(btn.dataset.id));
+        });
+        document.querySelectorAll('.matches-supervisor').forEach(btn => {
+            btn.addEventListener('click', () => viewSupervisorMatches(btn.dataset.id, btn.dataset.name));
+        });
+        document.querySelectorAll('.edit-supervisor').forEach(btn => {
+            btn.addEventListener('click', () => editSupervisor(btn.dataset.id));
+        });
+        document.querySelectorAll('.delete-supervisor').forEach(btn => {
+            btn.addEventListener('click', () => deleteSupervisor(btn.dataset.id));
+        });
+
+    } catch (error) {
+        console.error('Error loading match counts:', error);
+    }
 }
 
 // ============================================

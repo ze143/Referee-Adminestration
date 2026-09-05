@@ -17,8 +17,39 @@
       rel="stylesheet"
     />
 
+    <!-- Select2 CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css"
+      rel="stylesheet"
+    />
+
     <!-- Custom Sports Theme -->
     <link href="../assets/css/custom-sports-theme.css" rel="stylesheet" />
+
+    <style>
+      /* ✅ تحسين عرض Select2 في المودال */
+      .select2-container--bootstrap-5 .select2-selection {
+        min-height: 38px;
+        border-radius: 0.375rem;
+      }
+      .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+        padding: 0.375rem 0.75rem;
+        line-height: 1.5;
+      }
+      .select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+        height: 38px;
+      }
+      .select2-container--bootstrap-5 .select2-dropdown {
+        border-radius: 0.375rem;
+      }
+      .select2-container--bootstrap-5 .select2-search--dropdown .select2-search__field {
+        border-radius: 0.375rem;
+      }
+    </style>
   </head>
 
   <body>
@@ -105,8 +136,6 @@
       <!-- Content -->
       <div class="content-wrapper">
         <!-- Filters & Actions -->
-        <!-- في admin-matches.html - تحديث قسم الفلاتر -->
-
         <div class="glass-card mb-4">
           <div class="card-body">
             <div class="row g-3">
@@ -239,38 +268,38 @@
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">الحكم</label>
-                  <select class="form-select" id="mainReferee">
+                  <select class="form-select select2" id="mainReferee">
                     <option value="">اختر الحكم</option>
                   </select>
                 </div>
 
                 <div class="col-md-6">
                   <label class="form-label">مساعد أول</label>
-                  <select class="form-select" id="assistant1">
+                  <select class="form-select select2" id="assistant1">
                     <option value="">اختر الحكم</option>
                   </select>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">مساعد ثاني</label>
-                  <select class="form-select" id="assistant2">
+                  <select class="form-select select2" id="assistant2">
                     <option value="">اختر الحكم</option>
                   </select>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">الحكم الرابع</label>
-                  <select class="form-select" id="fourthReferee">
+                  <select class="form-select select2" id="fourthReferee">
                     <option value="">اختر الحكم</option>
                   </select>
                 </div>
                 <div class="col-md-6" id="varContainer" style="display: none">
                   <label class="form-label">حكم VAR</label>
-                  <select class="form-select" id="varReferee">
+                  <select class="form-select select2" id="varReferee">
                     <option value="">اختر حكم VAR</option>
                   </select>
                 </div>
                 <div class="col-md-6" id="avarContainer" style="display: none">
                   <label class="form-label">حكم AVAR</label>
-                  <select class="form-select" id="avarReferee">
+                  <select class="form-select select2" id="avarReferee">
                     <option value="">اختر حكم AVAR</option>
                   </select>
                 </div>
@@ -340,7 +369,6 @@
       </div>
     </div>
 
-    <!-- بعد Match Details Modal -->
     <!-- Excuse Modal -->
     <div class="modal fade" id="excuseModal" tabindex="-1">
       <div class="modal-dialog">
@@ -411,7 +439,11 @@
     </div>
 
     <!-- Scripts -->
+    <!-- jQuery (required for Select2) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Select2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script type="module" src="../js/admin/adminMatches.js"></script>
   </body>
 </html>

@@ -85,6 +85,9 @@ async function generateReport() {
             case 'finance':
                 reportData = await generateFinanceReport(dateFrom, dateTo);
                 break;
+            case 'supervisors':
+                reportData = await generateSupervisorsReport(dateFrom, dateTo);
+                break;
             default:
                 throw new Error('نوع تقرير غير معروف');
         }
@@ -118,7 +121,8 @@ async function generateMatchesReport(dateFrom, dateTo) {
                 main_referee:referees!matches_main_referee_id_fkey(full_name),
                 fourth_referee:referees!matches_fourth_referee_id_fkey(full_name),
                 assistant1:referees!matches_assistant1_referee_id_fkey(full_name),
-                assistant2:referees!matches_assistant2_referee_id_fkey(full_name)
+                assistant2:referees!matches_assistant2_referee_id_fkey(full_name),
+                supervisor:supervisors!matches_supervisor_id_fkey(full_name)
             `)
             .gte('match_date', dateFrom)
             .lte('match_date', dateTo)
@@ -131,6 +135,7 @@ async function generateMatchesReport(dateFrom, dateTo) {
         
         const matchesByCompetition = {};
         const matchesByReferee = {};
+        const matchesBySupervisor = {};
         let notifiedCount = 0;
         let paidCount = 0;
         let upcomingCount = 0;
@@ -151,6 +156,11 @@ async function generateMatchesReport(dateFrom, dateTo) {
                 }
             });
 
+            // By supervisor
+            if (match.supervisor?.full_name) {
+                matchesBySupervisor[match.supervisor.full_name] = (matchesBySupervisor[match.supervisor.full_name] || 0) + 1;
+            }
+
             // Count notified and paid
             if (match.is_notified) notifiedCount++;
             if (match.is_paid) paidCount++;
@@ -170,6 +180,7 @@ async function generateMatchesReport(dateFrom, dateTo) {
             totalMatches: totalMatches,
             matchesByCompetition: matchesByCompetition,
             matchesByReferee: matchesByReferee,
+            matchesBySupervisor: matchesBySupervisor,
             notifiedMatches: notifiedCount,
             paidMatches: paidCount,
             upcomingMatches: upcomingCount,
@@ -250,6 +261,92 @@ async function generateRefereesReport(dateFrom, dateTo) {
 }
 
 // ============================================
+// ✅ Generate supervisors report
+// ============================================
+async function generateSupervisorsReport(dateFrom, dateTo) {
+    try {
+        // 1. جلب جميع المراقبين
+        const { data: supervisorsData, error: supError } = await supabase
+            .from('supervisors')
+            .select('*')
+            .order('full_name');
+
+        if (supError) throw supError;
+
+        // 2. جلب جميع المباريات في الفترة المحددة مع بيانات المراقب
+        const { data: matchesData, error: matchError } = await supabase
+            .from('matches')
+            .select(`
+                id,
+                match_date,
+                is_notified,
+                is_paid,
+                supervisor_id,
+                competition_id,
+                competitions!inner(name)
+            `)
+            .gte('match_date', dateFrom)
+            .lte('match_date', dateTo);
+
+        if (matchError) throw matchError;
+
+        // 3. تجميع المباريات حسب supervisor_id
+        const matchesBySupervisor = {};
+        matchesData?.forEach(match => {
+            const supId = match.supervisor_id;
+            if (!supId) return;
+            
+            if (!matchesBySupervisor[supId]) {
+                matchesBySupervisor[supId] = [];
+            }
+            matchesBySupervisor[supId].push(match);
+        });
+
+        // 4. بناء الإحصائيات لكل مراقب
+        const supervisorStats = supervisorsData?.map(sup => {
+            const matches = matchesBySupervisor[sup.id] || [];
+            
+            // حساب المباريات حسب المسابقة
+            const matchesByCompetition = {};
+            matches.forEach(m => {
+                const compName = m.competitions?.name || 'غير محدد';
+                matchesByCompetition[compName] = (matchesByCompetition[compName] || 0) + 1;
+            });
+
+            return {
+                ...sup,
+                matchCount: matches.length,
+                paidMatches: matches.filter(m => m.is_paid).length,
+                notifiedMatches: matches.filter(m => m.is_notified).length,
+                matchesByCompetition: matchesByCompetition
+            };
+        });
+
+        const totalSupervisors = supervisorStats?.length || 0;
+        const totalMatches = supervisorStats?.reduce((sum, s) => sum + s.matchCount, 0) || 0;
+        const totalPaid = supervisorStats?.reduce((sum, s) => sum + s.paidMatches, 0) || 0;
+        const totalNotified = supervisorStats?.reduce((sum, s) => sum + s.notifiedMatches, 0) || 0;
+        const avgMatches = totalSupervisors > 0 ? (totalMatches / totalSupervisors).toFixed(1) : 0;
+
+        return {
+            type: 'supervisors',
+            data: supervisorStats || [],
+            totalSupervisors: totalSupervisors,
+            totalMatches: totalMatches,
+            totalPaid: totalPaid,
+            totalNotified: totalNotified,
+            avgMatches: avgMatches,
+            dateFrom: dateFrom,
+            dateTo: dateTo
+        };
+
+    } catch (error) {
+        console.error('Error generating supervisors report:', error);
+        throw error;
+    }
+}
+
+// ============================================
 // ✅ Generate competitions report
 // ============================================
 async function generateCompetitionsReport(dateFrom, dateTo) {
@@ -303,88 +400,7 @@ async function generateCompetitionsReport(dateFrom, dateTo) {
     }
 }
 
-// ============================================
-// ✅ Generate finance report
-// ============================================
-async function generateFinanceReport(dateFrom, dateTo) {
-    try {
-        const { data: matchesData, error } = await supabase
-            .from('matches')
-            .select(`
-                *,
-                competitions!inner(name, match_fee, payout_source),
-                main_referee:referees!matches_main_referee_id_fkey(id, full_name),
-                fourth_referee:referees!matches_fourth_referee_id_fkey(id, full_name),
-                assistant1:referees!matches_assistant1_referee_id_fkey(id, full_name),
-                assistant2:referees!matches_assistant2_referee_id_fkey(id, full_name)
-            `)
-            .gte('match_date', dateFrom)
-            .lte('match_date', dateTo)
-            .eq('competitions.payout_source', 'federation'); // فقط مسابقات الاتحاد
 
-        if (error) throw error;
-
-        const financeMap = new Map();
-        let totalMatches = 0;
-        let totalFeesAll = 0;
-
-        matchesData?.forEach(match => {
-            const fee = match.competitions?.match_fee || 0;
-            totalMatches++;
-            totalFeesAll += fee;
-            
-            const referees = [
-                { ref: match.main_referee, weight: 1 },
-                { ref: match.fourth_referee, weight: 0.5 },
-                { ref: match.assistant1, weight: 0.75 },
-                { ref: match.assistant2, weight: 0.75 }
-            ];
-
-            referees.forEach(({ ref, weight }) => {
-                if (!ref) return;
-
-                if (!financeMap.has(ref.id)) {
-                    financeMap.set(ref.id, {
-                        referee_id: ref.id,
-                        referee_name: ref.full_name,
-                        total_fee: 0,
-                        match_count: 0,
-                        is_paid: match.is_paid
-                    });
-                }
-
-                const entry = financeMap.get(ref.id);
-                entry.total_fee += fee * weight;
-                entry.match_count += 1;
-            });
-        });
-
-        const financeData = Array.from(financeMap.values()).map(entry => ({
-            ...entry,
-            deduction: entry.total_fee * 0.10,
-            net: entry.total_fee * 0.90
-        }));
-
-        const totalFees = financeData.reduce((sum, f) => sum + f.total_fee, 0);
-        const totalReferees = financeData.length;
-
-        return {
-            type: 'finance',
-            data: financeData,
-            totalReferees: totalReferees,
-            totalMatches: totalMatches,
-            totalFees: totalFees,
-            totalDeductions: totalFees * 0.10,
-            totalNet: totalFees * 0.90,
-            dateFrom: dateFrom,
-            dateTo: dateTo
-        };
-
-    } catch (error) {
-        console.error('Error generating finance report:', error);
-        throw error;
-    }
-}
 
 // ============================================
 // ✅ Render report
@@ -406,6 +422,9 @@ function renderReport(reportType, reportData) {
         case 'finance':
             html = renderFinanceReport(reportData);
             break;
+        case 'supervisors':
+            html = renderSupervisorsReport(reportData);
+            break;
     }
 
     content.innerHTML = html;
@@ -418,10 +437,221 @@ function renderReport(reportType, reportData) {
         });
     });
 
+    document.querySelectorAll('.view-supervisor-report').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const supervisorId = btn.dataset.id;
+            viewSupervisorDetails(supervisorId);
+        });
+    });
+
     // Initialize charts after rendering
     setTimeout(() => {
         initReportCharts(reportType, reportData);
     }, 100);
+}
+
+// ============================================
+// ✅ Render supervisors report
+// ============================================
+function renderSupervisorsReport(data) {
+    const totalSupervisors = data?.totalSupervisors || 0;
+    const totalMatches = data?.totalMatches || 0;
+    const totalPaid = data?.totalPaid || 0;
+    const totalNotified = data?.totalNotified || 0;
+    const avgMatches = data?.avgMatches || 0;
+
+    return `
+        <div class="row g-4 mb-4">
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number" style="font-size: 28px; color: #00c853;">${totalSupervisors}</div>
+                    <div class="stat-label">👤 إجمالي المراقبين</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number" style="font-size: 28px; color: #2196f3;">${totalMatches}</div>
+                    <div class="stat-label">📊 إجمالي المباريات</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number" style="font-size: 28px; color: #4caf50;">${totalPaid}</div>
+                    <div class="stat-label">💰 مباريات مدفوعة</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number" style="font-size: 28px; color: #ff9800;">${totalNotified}</div>
+                    <div class="stat-label">🔔 مباريات مبلغ عنها</div>
+                </div>
+            </div>
+        </div>
+        <div class="row g-4 mb-4">
+            <div class="col-md-12">
+                <div class="stat-card">
+                    <div class="stat-number" style="font-size: 28px; color: #9c27b0;">${avgMatches}</div>
+                    <div class="stat-label">📈 متوسط المباريات لكل مراقب</div>
+                </div>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>اسم المراقب</th>
+                        <th>الهاتف</th>
+                        <th>عدد المباريات</th>
+                        <th>مدفوعة</th>
+                        <th>مبلغ عنها</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.data && data.data.length > 0 ? data.data.map(sup => `
+                        <tr>
+                            <td><strong>${sup.full_name}</strong></td>
+                            <td>${sup.phone || '-'}</td>
+                            <td>${sup.matchCount}</td>
+                            <td>${sup.paidMatches}</td>
+                            <td>${sup.notifiedMatches}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary view-supervisor-report" data-id="${sup.id}">
+                                    <i class="fas fa-eye"></i> عرض
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('') : `
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">لا توجد بيانات</td>
+                        </tr>
+                    `}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+// ============================================
+// ✅ View supervisor details
+// ============================================
+async function viewSupervisorDetails(id) {
+    try {
+        const { data: supervisor, error } = await supabase
+            .from('supervisors')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error) throw error;
+
+        const { data: matches, error: matchError } = await supabase
+            .from('matches')
+            .select(`
+                *,
+                competitions!inner(name),
+                home_team:teams!matches_home_team_id_fkey(name),
+                away_team:teams!matches_away_team_id_fkey(name),
+                main_referee:referees!matches_main_referee_id_fkey(full_name)
+            `)
+            .eq('supervisor_id', id)
+            .order('match_date', { ascending: false });
+
+        if (matchError) throw matchError;
+
+        // إحصائيات المباريات حسب المسابقة
+        const competitions = {};
+        matches?.forEach(m => {
+            const compName = m.competitions?.name || 'غير محدد';
+            competitions[compName] = (competitions[compName] || 0) + 1;
+        });
+
+        Swal.fire({
+            title: `تفاصيل المراقب: ${supervisor.full_name}`,
+            html: `
+                <div style="text-align: right; direction: rtl; max-height: 70vh; overflow-y: auto;">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>معلومات شخصية</h5>
+                            <p><strong>الاسم:</strong> ${supervisor.full_name}</p>
+                            <p><strong>الهاتف:</strong> ${supervisor.phone || '-'}</p>
+                            <p><strong>تاريخ الإضافة:</strong> ${new Date(supervisor.created_at).toLocaleDateString('ar-EG')}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>إحصائيات المباريات</h5>
+                            <p><strong>إجمالي المباريات:</strong> ${matches?.length || 0}</p>
+                            <p><strong>مدفوعة:</strong> ${matches?.filter(m => m.is_paid).length || 0}</p>
+                            <p><strong>مبلغ عنها:</strong> ${matches?.filter(m => m.is_notified).length || 0}</p>
+                        </div>
+                    </div>
+                    ${Object.keys(competitions).length > 0 ? `
+                        <hr>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <h5>المباريات حسب المسابقة</h5>
+                                <div class="row g-2">
+                                    ${Object.entries(competitions).map(([compName, count]) => `
+                                        <div class="col-4 col-md-3">
+                                            <div class="stat-card small">
+                                                <div class="stat-number" style="font-size: 18px;">${count}</div>
+                                                <div class="stat-label" style="font-size: 11px;">${compName}</div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h5>آخر المباريات</h5>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>التاريخ</th>
+                                        <th>المسابقة</th>
+                                        <th>المضيف</th>
+                                        <th>الضيف</th>
+                                        <th>الحكم الرئيسي</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${matches?.slice(0, 5).map(m => `
+                                        <tr>
+                                            <td>${new Date(m.match_date).toLocaleDateString('ar-EG')}</td>
+                                            <td>${m.competitions?.name || '-'}</td>
+                                            <td>${m.home_team?.name || '-'}</td>
+                                            <td>${m.away_team?.name || '-'}</td>
+                                            <td>${m.main_referee?.full_name || '-'}</td>
+                                        </tr>
+                                    `).join('')}
+                                    ${(!matches || matches.length === 0) ? `
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">لا توجد مباريات</td>
+                                        </tr>
+                                    ` : ''}
+                                </tbody>
+                            </table>
+                            ${matches && matches.length > 5 ? `<p class="text-muted text-center">عرض أول 5 مباريات من أصل ${matches.length}</p>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `,
+            width: '900px',
+            confirmButtonText: 'إغلاق',
+            confirmButtonColor: '#00c853'
+        });
+
+    } catch (error) {
+        console.error('Error viewing supervisor details:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'خطأ',
+            text: 'حدث خطأ في تحميل تفاصيل المراقب',
+            confirmButtonText: 'حسناً'
+        });
+    }
 }
 
 // ============================================
@@ -494,6 +724,7 @@ function renderMatchesReport(data) {
                         <th>المضيف</th>
                         <th>الضيف</th>
                         <th>الحكم الرئيسي</th>
+                        <th>المراقب</th>
                         <th>الحالة</th>
                     </tr>
                 </thead>
@@ -506,6 +737,7 @@ function renderMatchesReport(data) {
                             <td>${m.home_team?.name || '-'}</td>
                             <td>${m.away_team?.name || '-'}</td>
                             <td>${m.main_referee?.full_name || '-'}</td>
+                            <td>${m.supervisor?.full_name || '-'}</td>
                             <td>
                                 <span class="badge ${m.is_notified ? 'bg-success' : 'bg-warning'}">
                                     ${m.is_notified ? '✅ مبلغ عنه' : '⏳ غير مبلغ'}
@@ -514,7 +746,7 @@ function renderMatchesReport(data) {
                         </tr>
                     `).join('') : `
                         <tr>
-                            <td colspan="7" class="text-center text-muted">لا توجد مباريات في هذه الفترة</td>
+                            <td colspan="8" class="text-center text-muted">لا توجد مباريات في هذه الفترة</td>
                         </tr>
                     `}
                 </tbody>
@@ -1100,6 +1332,7 @@ function exportReportExcel() {
                     'الحكم الرابع': m.fourth_referee?.full_name || '-',
                     'مساعد أول': m.assistant1?.full_name || '-',
                     'مساعد ثاني': m.assistant2?.full_name || '-',
+                    'المراقب': m.supervisor?.full_name || '-',
                     'الملعب': m.stadium,
                     'مبلغ عنه': m.is_notified ? 'نعم' : 'لا',
                     'مدفوع': m.is_paid ? 'نعم' : 'لا'
@@ -1113,6 +1346,15 @@ function exportReportExcel() {
                     'عدد المباريات': r.matchCount,
                     'عدد الأعذار': r.excuseCount,
                     'الحالة': r.isActive ? 'نشط' : 'موقوف'
+                }));
+                break;
+            case 'supervisors':
+                excelData = data.data.map(s => ({
+                    'اسم المراقب': s.full_name,
+                    'الهاتف': s.phone || '-',
+                    'عدد المباريات': s.matchCount,
+                    'مدفوعة': s.paidMatches,
+                    'مبلغ عنها': s.notifiedMatches
                 }));
                 break;
             case 'competitions':

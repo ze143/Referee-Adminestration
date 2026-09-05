@@ -18,14 +18,13 @@
     />
 
     <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- SheetJS for Excel export -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-    <!-- jsPDF for PDF export -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- html2pdf (for PDF export) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- xlsx (for Excel export) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <!-- Custom Sports Theme -->
     <link href="../assets/css/custom-sports-theme.css" rel="stylesheet" />
@@ -116,82 +115,53 @@
         <!-- Report Filters -->
         <div class="glass-card mb-4">
           <div class="card-body">
-            <div class="row g-3">
+            <div class="row g-3 align-items-end">
               <div class="col-md-3">
+                <label class="form-label">نوع التقرير</label>
                 <select class="form-select" id="reportType">
-                  <option value="matches">تقارير المباريات</option>
-                  <option value="referees">تقارير الحكام</option>
-                  <option value="competitions">تقارير المسابقات</option>
-                  <option value="finance">تقارير مالية</option>
+                  <option value="matches">تقرير المباريات</option>
+                  <option value="referees">تقرير الحكام</option>
+                  <option value="supervisors">تقرير المراقبين</option>
+                  <option value="competitions">تقرير المسابقات</option>
+                  <option value="finance">التقرير المالي</option>
                 </select>
               </div>
               <div class="col-md-3">
-                <input
-                  type="date"
-                  class="form-control"
-                  id="reportDateFrom"
-                  placeholder="من تاريخ"
-                />
+                <label class="form-label">من تاريخ</label>
+                <input type="date" class="form-control" id="reportDateFrom" />
               </div>
               <div class="col-md-3">
-                <input
-                  type="date"
-                  class="form-control"
-                  id="reportDateTo"
-                  placeholder="إلى تاريخ"
-                />
+                <label class="form-label">إلى تاريخ</label>
+                <input type="date" class="form-control" id="reportDateTo" />
               </div>
               <div class="col-md-3">
                 <button class="btn btn-primary w-100" id="generateReportBtn">
-                  <i class="fas fa-chart-line me-2"></i>إنشاء التقرير
+                  <i class="fas fa-chart-bar me-2"></i>إنشاء التقرير
                 </button>
               </div>
             </div>
-            <div class="row g-3 mt-3">
+            <div class="row g-3 mt-2">
               <div class="col-md-12">
-                <div class="d-flex gap-2">
-                  <button class="btn btn-success" id="exportReportExcel">
-                    <i class="fas fa-file-excel me-2"></i>تصدير Excel
-                  </button>
-                  <button class="btn btn-danger" id="exportReportPdf">
-                    <i class="fas fa-file-pdf me-2"></i>تصدير PDF
-                  </button>
-                </div>
+                <button class="btn btn-success me-2" id="exportReportExcel">
+                  <i class="fas fa-file-excel me-2"></i>تصدير Excel
+                </button>
+                <button class="btn btn-danger" id="exportReportPdf">
+                  <i class="fas fa-file-pdf me-2"></i>تصدير PDF
+                </button>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Report Results -->
+        <!-- Report Content -->
         <div class="glass-card">
-          <div class="card-header">
-            <h5><i class="fas fa-chart-bar me-2"></i>نتائج التقرير</h5>
-          </div>
-          <div class="card-body" id="reportContent">
-            <!-- Report charts and tables will be rendered here -->
-            <div class="text-center text-muted py-5">
-              <i class="fas fa-file-alt fa-3x mb-3"></i>
-              <p>اختر نوع التقرير والفترة الزمنية ثم اضغط "إنشاء التقرير"</p>
+          <div class="card-body">
+            <div id="reportContent">
+              <div class="text-center py-5 text-muted">
+                <i class="fas fa-file-alt fa-3x mb-3"></i>
+                <p>اختر نوع التقرير والفترة الزمنية ثم اضغط "إنشاء التقرير"</p>
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Referee Details Modal (reused) -->
-    <div class="modal fade" id="refereeDetailsModal" tabindex="-1">
-      <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">تفاصيل الحكم</h5>
-            <button
-              type="button"
-              class="btn-close"
-              data-bs-dismiss="modal"
-            ></button>
-          </div>
-          <div class="modal-body" id="refereeDetailsContent">
-            <!-- Dynamic content -->
           </div>
         </div>
       </div>

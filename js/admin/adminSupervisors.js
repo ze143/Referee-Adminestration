@@ -6,6 +6,20 @@ import Swal from 'https://cdn.jsdelivr.net/npm/sweetalert2@11/+esm';
 let allSupervisors = [];
 let allMatches = [];
 
+// ✅ دالة تحديث عداد المراقبين
+function updateSupervisorsCount(count) {
+    const badge = document.getElementById('supervisorsCount');
+    if (badge) {
+        badge.textContent = count;
+        // إخفاء العداد إذا كان الصفر
+        if (count === 0) {
+            badge.style.display = 'none';
+        } else {
+            badge.style.display = 'inline-block';
+        }
+    }
+}
+
 async function init() {
     try {
         const auth = await requireAuth(['admin']);
@@ -43,6 +57,10 @@ async function loadSupervisors() {
         if (error) throw error;
         allSupervisors = data || [];
         renderSupervisors(allSupervisors);
+        
+        // ✅ تحديث عداد المراقبين في السايدبار
+        updateSupervisorsCount(allSupervisors.length);
+        
     } catch (error) {
         console.error('Error loading supervisors:', error);
         Swal.fire({
@@ -82,9 +100,6 @@ async function loadSupervisorMatches(supervisorId) {
     }
 }
 
-// ============================================
-// ✅ عرض تفاصيل المراقب
-// ============================================
 async function viewSupervisorDetails(id) {
     try {
         const { data: supervisor, error } = await supabase
@@ -121,6 +136,10 @@ async function viewSupervisorDetails(id) {
                         <span class="badge bg-info">مراقب</span>
                     </div>
                     <div class="info-list">
+                        <div class="info-item">
+                            <i class="fas fa-map-marker-alt text-primary"></i>
+                            <span><strong>المنطقة:</strong> ${supervisor.region || '-'}</span>
+                        </div>
                         <div class="info-item">
                             <i class="fas fa-phone text-success"></i>
                             <span><strong>الهاتف:</strong> ${supervisor.phone || '-'}</span>
@@ -323,9 +342,6 @@ async function viewSupervisorMatches(id, name) {
     }
 }
 
-// ============================================
-// ✅ دالة renderSupervisors - مع حساب عدد المباريات
-// ============================================
 async function renderSupervisors(supervisors) {
     const tbody = document.getElementById('supervisorsBody');
     tbody.innerHTML = '';
@@ -333,7 +349,7 @@ async function renderSupervisors(supervisors) {
     if (!supervisors || supervisors.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="4" class="text-center py-4 text-muted">
+                <td colspan="5" class="text-center py-4 text-muted">
                     <i class="fas fa-info-circle me-2"></i>لا يوجد مراقبين
                 </td>
             </tr>
@@ -363,6 +379,7 @@ async function renderSupervisors(supervisors) {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><strong>${sup.full_name}</strong></td>
+                <td>${sup.region || '-'}</td>
                 <td>${sup.phone || '-'}</td>
                 <td><span class="badge ${matchCount > 0 ? 'bg-success' : 'bg-secondary'}">${matchCount}</span></td>
                 <td>
@@ -404,22 +421,17 @@ async function renderSupervisors(supervisors) {
     }
 }
 
-// ============================================
-// ✅ دالة فتح مودال إضافة مراقب
-// ============================================
 function openAddSupervisorModal() {
     document.getElementById('supervisorModalTitle').textContent = 'إضافة مراقب جديد';
     document.getElementById('supervisorForm').reset();
     document.getElementById('supervisorId').value = '';
+    document.getElementById('supervisorRegion').value = '';
     document.getElementById('supervisorModal').dataset.mode = 'add';
     
     const modal = new bootstrap.Modal(document.getElementById('supervisorModal'));
     modal.show();
 }
 
-// ============================================
-// ✅ دالة تعديل مراقب
-// ============================================
 async function editSupervisor(id) {
     try {
         const { data, error } = await supabase
@@ -434,6 +446,7 @@ async function editSupervisor(id) {
         document.getElementById('supervisorId').value = data.id;
         document.getElementById('supervisorName').value = data.full_name;
         document.getElementById('supervisorPhone').value = data.phone || '';
+        document.getElementById('supervisorRegion').value = data.region || '';
         document.getElementById('supervisorModal').dataset.mode = 'edit';
 
         const modal = new bootstrap.Modal(document.getElementById('supervisorModal'));
@@ -449,9 +462,6 @@ async function editSupervisor(id) {
     }
 }
 
-// ============================================
-// ✅ دالة حفظ مراقب
-// ============================================
 async function saveSupervisor() {
     try {
         const id = document.getElementById('supervisorId').value;
@@ -459,7 +469,8 @@ async function saveSupervisor() {
         
         const data = {
             full_name: document.getElementById('supervisorName').value.trim(),
-            phone: document.getElementById('supervisorPhone').value.trim()
+            phone: document.getElementById('supervisorPhone').value.trim(),
+            region: document.getElementById('supervisorRegion').value.trim()
         };
 
         if (!data.full_name) {
@@ -503,7 +514,6 @@ async function saveSupervisor() {
         });
     }
 }
-
 // ============================================
 // ✅ دالة حذف مراقب
 // ============================================

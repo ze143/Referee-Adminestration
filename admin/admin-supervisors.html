@@ -16,7 +16,7 @@
     <link href="../assets/css/custom-sports-theme.css" rel="stylesheet" />
   </head>
   <body>
-    <!-- Sidebar (نفس الهيكل) -->
+    <!-- Sidebar -->
     <div class="sidebar-wrapper">
       <div class="sidebar">
         <div class="sidebar-brand">
@@ -86,7 +86,12 @@
               >
                 <i class="fas fa-bars"></i>
               </button>
-              <h4 class="page-title mb-0">إدارة المراقبين</h4>
+              <h4 class="page-title mb-0 p-2">إدارة المراقبين</h4>
+              <span
+                class="badge bg-danger rounded-pill ms-auto"
+                id="supervisorsCount"
+                >0</span
+              >
             </div>
             <div class="top-nav-right">
               <div class="date-display" id="currentDate"></div>
@@ -112,6 +117,7 @@
                 <thead>
                   <tr>
                     <th>الاسم</th>
+                    <th>المنطقة</th>
                     <th>رقم الهاتف</th>
                     <th>عدد المباريات</th>
                     <th>الإجراءات</th>
@@ -152,6 +158,40 @@
                   id="supervisorName"
                   required
                 />
+              </div>
+              <!-- المنطقة -->
+              <div class="mb-3">
+                <label class="form-label">المنطقة *</label>
+                <select class="form-select" id="supervisorRegion" required>
+                  <option value="">اختر المنطقة</option>
+                  <option value="القاهره">القاهره</option>
+                  <option value="الجيزه">الجيزه</option>
+                  <option value="الاسكندرية">الاسكندرية</option>
+                  <option value="الشرقيه">الشرقيه</option>
+                  <option value="الدقهليه">الدقهليه</option>
+                  <option value="البحيرة">البحيرة</option>
+                  <option value="الغربيه">الغربيه</option>
+                  <option value="المنوفيه">المنوفيه</option>
+                  <option value="القليوبيه">القليوبيه</option>
+                  <option value="سوهاج">سوهاج</option>
+                  <option value="اسيوط">اسيوط</option>
+                  <option value="الأقصر">الأقصر</option>
+                  <option value="اسوان">اسوان</option>
+                  <option value="بورسعيد">بورسعيد</option>
+                  <option value="السويس">السويس</option>
+                  <option value="الاسماعيليه">الاسماعيليه</option>
+                  <option value="الفيوم">الفيوم</option>
+                  <option value="بنى سويف">بنى سويف</option>
+                  <option value="المنيا">المنيا</option>
+                  <option value="قنا">قنا</option>
+                  <option value="دمياط">دمياط</option>
+                  <option value="كفر الشيخ">كفر الشيخ</option>
+                  <option value="شمال سيناء">شمال سيناء</option>
+                  <option value="جنوب سيناء">جنوب سيناء</option>
+                  <option value="الوادي الجديد">الوادي الجديد</option>
+                  <option value="البحر الأحمر">البحر الأحمر</option>
+                  <option value="مطروح">مطروح</option>
+                </select>
               </div>
               <div class="mb-3">
                 <label class="form-label">رقم الهاتف</label>

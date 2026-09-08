@@ -5,13 +5,24 @@ import Swal from 'https://cdn.jsdelivr.net/npm/sweetalert2@11/+esm';
 
 let allSupervisors = [];
 let allMatches = [];
+let matchCounts = {};
+let filteredSupervisors = [];
+
+// ✅ قائمة المناطق المعتمدة
+const SUPERVISOR_REGIONS = [
+    'القاهره', 'الجيزه', 'الاسكندرية', 'الشرقيه', 'الدقهليه',
+    'البحيرة', 'الغربيه', 'المنوفيه', 'القليوبيه', 'سوهاج',
+    'اسيوط', 'الأقصر', 'اسوان', 'بورسعيد', 'السويس',
+    'الاسماعيليه', 'الفيوم', 'بنى سويف', 'المنيا', 'قنا',
+    'دمياط', 'كفر الشيخ', 'سيناء', 'الوادي الجديد',
+    'البحر الأحمر', 'مطروح'
+];
 
 // ✅ دالة تحديث عداد المراقبين
 function updateSupervisorsCount(count) {
     const badge = document.getElementById('supervisorsCount');
     if (badge) {
         badge.textContent = count;
-        // إخفاء العداد إذا كان الصفر
         if (count === 0) {
             badge.style.display = 'none';
         } else {
@@ -19,6 +30,213 @@ function updateSupervisorsCount(count) {
         }
     }
 }
+
+// ✅ دالة التحقق من صحة المنطقة
+function isValidRegion(region) {
+    if (!region) return true;
+    return SUPERVISOR_REGIONS.includes(region);
+}
+
+// ============================================
+// ✅ دوال الفلترة
+// ============================================
+
+// ✅ تطبيق الفلاتر
+function applyFilters() {
+    const nameFilter = document.getElementById('filterName').value.trim().toLowerCase();
+    const regionFilter = document.getElementById('filterRegion').value;
+    const matchesFilter = document.getElementById('filterMatchesCount').value;
+
+    filteredSupervisors = allSupervisors.filter(sup => {
+        // فلتر الاسم
+        if (nameFilter && !sup.full_name.toLowerCase().includes(nameFilter)) {
+            return false;
+        }
+
+        // فلتر المنطقة
+        if (regionFilter && sup.region !== regionFilter) {
+            return false;
+        }
+
+        // فلتر عدد المباريات
+        const matchCount = matchCounts[sup.id] || 0;
+        if (matchesFilter) {
+            switch (matchesFilter) {
+                case '0':
+                    if (matchCount !== 0) return false;
+                    break;
+                case '1-5':
+                    if (matchCount < 1 || matchCount > 5) return false;
+                    break;
+                case '6-10':
+                    if (matchCount < 6 || matchCount > 10) return false;
+                    break;
+                case '11+':
+                    if (matchCount < 11) return false;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        return true;
+    });
+
+    // عرض الفلاتر النشطة
+    updateActiveFilters();
+
+    // عرض النتائج
+    renderSupervisors(filteredSupervisors);
+    
+    // تحديث العداد
+    const countBadge = document.getElementById('filteredCount');
+    if (countBadge) {
+        countBadge.textContent = filteredSupervisors.length;
+    }
+}
+
+// ✅ عرض الفلاتر النشطة
+function updateActiveFilters() {
+    const container = document.getElementById('activeFilters');
+    if (!container) return;
+    
+    const nameFilter = document.getElementById('filterName').value.trim();
+    const regionFilter = document.getElementById('filterRegion').value;
+    const matchesFilter = document.getElementById('filterMatchesCount').value;
+
+    let filters = [];
+
+    if (nameFilter) {
+        filters.push(`<span class="filter-badge">🔍 ${nameFilter} <span class="remove-filter" data-filter="name">✕</span></span>`);
+    }
+    if (regionFilter) {
+        filters.push(`<span class="filter-badge">📍 ${regionFilter} <span class="remove-filter" data-filter="region">✕</span></span>`);
+    }
+    if (matchesFilter) {
+        const labels = {
+            '0': 'بدون مباريات',
+            '1-5': '1-5 مباريات',
+            '6-10': '6-10 مباريات',
+            '11+': 'أكثر من 10 مباريات'
+        };
+        filters.push(`<span class="filter-badge">📊 ${labels[matchesFilter] || matchesFilter} <span class="remove-filter" data-filter="matches">✕</span></span>`);
+    }
+
+    if (filters.length > 0) {
+        container.innerHTML = `
+            <small class="text-muted">الفلاتر النشطة: </small>
+            ${filters.join(' ')}
+            <span class="filter-badge" style="cursor:pointer; background: #dc3545; color: white;" onclick="clearAllFilters()">مسح الكل ✕</span>
+        `;
+    } else {
+        container.innerHTML = '';
+    }
+
+    // إضافة مستمعات لإزالة الفلتر
+    document.querySelectorAll('.remove-filter').forEach(el => {
+        el.addEventListener('click', function() {
+            const filter = this.dataset.filter;
+            switch (filter) {
+                case 'name':
+                    document.getElementById('filterName').value = '';
+                    break;
+                case 'region':
+                    document.getElementById('filterRegion').value = '';
+                    break;
+                case 'matches':
+                    document.getElementById('filterMatchesCount').value = '';
+                    break;
+            }
+            applyFilters();
+        });
+    });
+}
+
+// ✅ مسح جميع الفلاتر
+function clearAllFilters() {
+    document.getElementById('filterName').value = '';
+    document.getElementById('filterRegion').value = '';
+    document.getElementById('filterMatchesCount').value = '';
+    applyFilters();
+}
+
+// ✅ تهيئة الفلاتر
+function initFilters() {
+    // تطبيق الفلتر عند الضغط على زر "تطبيق"
+    const applyBtn = document.getElementById('applyFiltersBtn');
+    if (applyBtn) {
+        applyBtn.addEventListener('click', applyFilters);
+    }
+
+    // مسح الفلاتر
+    const clearBtn = document.getElementById('clearFiltersBtn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', clearAllFilters);
+    }
+
+    // تطبيق الفلتر عند الضغط على Enter في حقل البحث
+    const nameInput = document.getElementById('filterName');
+    if (nameInput) {
+        nameInput.addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                applyFilters();
+            }
+        });
+    }
+
+    // تطبيق الفلتر عند تغيير أي فلتر (تفاعل سريع)
+    const regionSelect = document.getElementById('filterRegion');
+    if (regionSelect) {
+        regionSelect.addEventListener('change', applyFilters);
+    }
+    
+    const matchesSelect = document.getElementById('filterMatchesCount');
+    if (matchesSelect) {
+        matchesSelect.addEventListener('change', applyFilters);
+    }
+}
+
+// ✅ تصدير بيانات المراقبين إلى Excel
+function exportSupervisorsToExcel() {
+    try {
+        // استخدام البيانات المفلترة
+        const dataToExport = filteredSupervisors.length > 0 ? filteredSupervisors : allSupervisors;
+
+        const exportData = dataToExport.map(sup => ({
+            'الاسم': sup.full_name,
+            'المنطقة': sup.region || '',
+            'الهاتف': sup.phone || '',
+            'عدد المباريات': matchCounts[sup.id] || 0
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        XLSX.utils.book_append_sheet(wb, ws, 'المراقبين');
+        
+        XLSX.writeFile(wb, `المراقبين_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+        Swal.fire({
+            icon: 'success',
+            title: 'تم التصدير',
+            text: 'تم تصدير بيانات المراقبين بنجاح',
+            timer: 2000,
+            showConfirmButton: false
+        });
+
+    } catch (error) {
+        console.error('Error exporting supervisors:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'خطأ',
+            text: 'حدث خطأ في تصدير البيانات',
+            confirmButtonText: 'حسناً'
+        });
+    }
+}
+
+// ============================================
+// ✅ الدوال الأساسية
+// ============================================
 
 async function init() {
     try {
@@ -42,6 +260,15 @@ async function init() {
         document.getElementById('addSupervisorBtn').addEventListener('click', openAddSupervisorModal);
         document.getElementById('saveSupervisorBtn').addEventListener('click', saveSupervisor);
 
+        // ✅ تهيئة الفلاتر
+        initFilters();
+
+        // ✅ زر تصدير Excel
+        const exportBtn = document.getElementById('exportSupervisorsBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', exportSupervisorsToExcel);
+        }
+
     } catch (error) {
         console.error('Init error:', error);
     }
@@ -56,10 +283,20 @@ async function loadSupervisors() {
 
         if (error) throw error;
         allSupervisors = data || [];
+        
+        // ✅ حساب عدد المباريات لكل مراقب
+        await calculateMatchCounts();
+        
         renderSupervisors(allSupervisors);
         
         // ✅ تحديث عداد المراقبين في السايدبار
         updateSupervisorsCount(allSupervisors.length);
+        
+        // ✅ تحديث عداد النتائج المفلترة
+        const countBadge = document.getElementById('filteredCount');
+        if (countBadge) {
+            countBadge.textContent = allSupervisors.length;
+        }
         
     } catch (error) {
         console.error('Error loading supervisors:', error);
@@ -69,6 +306,27 @@ async function loadSupervisors() {
             text: 'حدث خطأ في تحميل المراقبين',
             confirmButtonText: 'حسناً'
         });
+    }
+}
+
+// ✅ حساب عدد المباريات لكل مراقب
+async function calculateMatchCounts() {
+    try {
+        const { data, error } = await supabase
+            .from('matches')
+            .select('supervisor_id');
+
+        if (error) throw error;
+
+        matchCounts = {};
+        data.forEach(match => {
+            if (match.supervisor_id) {
+                matchCounts[match.supervisor_id] = (matchCounts[match.supervisor_id] || 0) + 1;
+            }
+        });
+    } catch (error) {
+        console.error('Error calculating match counts:', error);
+        matchCounts = {};
     }
 }
 
@@ -100,6 +358,9 @@ async function loadSupervisorMatches(supervisorId) {
     }
 }
 
+// ============================================
+// ✅ عرض تفاصيل المراقب
+// ============================================
 async function viewSupervisorDetails(id) {
     try {
         const { data: supervisor, error } = await supabase
@@ -342,6 +603,9 @@ async function viewSupervisorMatches(id, name) {
     }
 }
 
+// ============================================
+// ✅ دالة renderSupervisors
+// ============================================
 async function renderSupervisors(supervisors) {
     const tbody = document.getElementById('supervisorsBody');
     tbody.innerHTML = '';
@@ -357,70 +621,53 @@ async function renderSupervisors(supervisors) {
         return;
     }
 
-    try {
-        // ✅ جلب جميع المباريات مرة واحدة لحساب الأعداد
-        const { data: allMatches, error } = await supabase
-            .from('matches')
-            .select('supervisor_id');
+    supervisors.forEach(sup => {
+        const matchCount = matchCounts[sup.id] || 0;
 
-        if (error) throw error;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${sup.full_name}</strong></td>
+            <td>${sup.region || '-'}</td>
+            <td>${sup.phone || '-'}</td>
+            <td><span class="badge ${matchCount > 0 ? 'bg-success' : 'bg-secondary'}">${matchCount}</span></td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-primary view-supervisor" data-id="${sup.id}" title="عرض البيانات">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-info matches-supervisor" data-id="${sup.id}" data-name="${sup.full_name}" title="المباريات التي راقبها">
+                        <i class="fas fa-calendar-alt"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning edit-supervisor" data-id="${sup.id}" title="تعديل">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger delete-supervisor" data-id="${sup.id}" title="حذف">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
 
-        // ✅ حساب عدد المباريات لكل مراقب
-        const matchCounts = {};
-        allMatches.forEach(match => {
-            if (match.supervisor_id) {
-                matchCounts[match.supervisor_id] = (matchCounts[match.supervisor_id] || 0) + 1;
-            }
-        });
-
-        supervisors.forEach(sup => {
-            const matchCount = matchCounts[sup.id] || 0;
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><strong>${sup.full_name}</strong></td>
-                <td>${sup.region || '-'}</td>
-                <td>${sup.phone || '-'}</td>
-                <td><span class="badge ${matchCount > 0 ? 'bg-success' : 'bg-secondary'}">${matchCount}</span></td>
-                <td>
-                    <div class="btn-group" role="group">
-                        <button class="btn btn-sm btn-outline-primary view-supervisor" data-id="${sup.id}" title="عرض البيانات">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-info matches-supervisor" data-id="${sup.id}" data-name="${sup.full_name}" title="المباريات التي راقبها">
-                            <i class="fas fa-calendar-alt"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-warning edit-supervisor" data-id="${sup.id}" title="تعديل">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger delete-supervisor" data-id="${sup.id}" title="حذف">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
-
-        // Event listeners
-        document.querySelectorAll('.view-supervisor').forEach(btn => {
-            btn.addEventListener('click', () => viewSupervisorDetails(btn.dataset.id));
-        });
-        document.querySelectorAll('.matches-supervisor').forEach(btn => {
-            btn.addEventListener('click', () => viewSupervisorMatches(btn.dataset.id, btn.dataset.name));
-        });
-        document.querySelectorAll('.edit-supervisor').forEach(btn => {
-            btn.addEventListener('click', () => editSupervisor(btn.dataset.id));
-        });
-        document.querySelectorAll('.delete-supervisor').forEach(btn => {
-            btn.addEventListener('click', () => deleteSupervisor(btn.dataset.id));
-        });
-
-    } catch (error) {
-        console.error('Error loading match counts:', error);
-    }
+    // Event listeners
+    document.querySelectorAll('.view-supervisor').forEach(btn => {
+        btn.addEventListener('click', () => viewSupervisorDetails(btn.dataset.id));
+    });
+    document.querySelectorAll('.matches-supervisor').forEach(btn => {
+        btn.addEventListener('click', () => viewSupervisorMatches(btn.dataset.id, btn.dataset.name));
+    });
+    document.querySelectorAll('.edit-supervisor').forEach(btn => {
+        btn.addEventListener('click', () => editSupervisor(btn.dataset.id));
+    });
+    document.querySelectorAll('.delete-supervisor').forEach(btn => {
+        btn.addEventListener('click', () => deleteSupervisor(btn.dataset.id));
+    });
 }
 
+// ============================================
+// ✅ دالة فتح مودال إضافة مراقب
+// ============================================
 function openAddSupervisorModal() {
     document.getElementById('supervisorModalTitle').textContent = 'إضافة مراقب جديد';
     document.getElementById('supervisorForm').reset();
@@ -432,6 +679,9 @@ function openAddSupervisorModal() {
     modal.show();
 }
 
+// ============================================
+// ✅ دالة تعديل مراقب
+// ============================================
 async function editSupervisor(id) {
     try {
         const { data, error } = await supabase
@@ -462,15 +712,31 @@ async function editSupervisor(id) {
     }
 }
 
+// ============================================
+// ✅ دالة حفظ مراقب
+// ============================================
 async function saveSupervisor() {
     try {
         const id = document.getElementById('supervisorId').value;
         const mode = document.getElementById('supervisorModal').dataset.mode;
         
+        const region = document.getElementById('supervisorRegion').value;
+        
+        // ✅ التحقق من صحة المنطقة
+        if (region && !isValidRegion(region)) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'تنبيه',
+                text: 'المنطقة المختارة غير معتمدة. الرجاء اختيار منطقة من القائمة.',
+                confirmButtonText: 'حسناً'
+            });
+            return;
+        }
+        
         const data = {
             full_name: document.getElementById('supervisorName').value.trim(),
             phone: document.getElementById('supervisorPhone').value.trim(),
-            region: document.getElementById('supervisorRegion').value.trim()
+            region: region
         };
 
         if (!data.full_name) {
@@ -504,6 +770,7 @@ async function saveSupervisor() {
         modal.hide();
 
         await loadSupervisors();
+        applyFilters(); // ✅ تحديث الفلاتر
     } catch (error) {
         console.error('Error saving supervisor:', error);
         Swal.fire({
@@ -514,24 +781,52 @@ async function saveSupervisor() {
         });
     }
 }
+
 // ============================================
 // ✅ دالة حذف مراقب
 // ============================================
 async function deleteSupervisor(id) {
+    // ✅ التحقق من وجود مباريات مرتبطة
+    const { count, error: countError } = await supabase
+        .from('matches')
+        .select('*', { count: 'exact', head: true })
+        .eq('supervisor_id', id);
+
+    if (countError) throw countError;
+
+    let confirmMessage = 'هل أنت متأكد من حذف هذا المراقب؟';
+    let showWarning = false;
+
+    if (count > 0) {
+        confirmMessage = `⚠️ هذا المراقب لديه ${count} مباراة(مباريات) مرتبطة به.\n\nسيتم إزالة المراقب من هذه المباريات (سيصبح supervisor_id = NULL).\n\nهل أنت متأكد من المتابعة؟`;
+        showWarning = true;
+    }
+
     const result = await Swal.fire({
-        title: 'حذف المراقب',
-        text: 'هل أنت متأكد من حذف هذا المراقب؟',
-        icon: 'warning',
+        title: showWarning ? '⚠️ تنبيه: مراقب لديه مباريات' : 'حذف المراقب',
+        text: confirmMessage,
+        icon: showWarning ? 'warning' : 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
         cancelButtonColor: '#3085d6',
-        confirmButtonText: 'نعم، حذف',
+        confirmButtonText: showWarning ? 'نعم، حذف مع إزالة المراقب من المباريات' : 'نعم، حذف',
         cancelButtonText: 'إلغاء'
     });
 
     if (!result.isConfirmed) return;
 
     try {
+        // ✅ تحديث المباريات المرتبطة (جعل supervisor_id = NULL)
+        if (count > 0) {
+            const { error: updateError } = await supabase
+                .from('matches')
+                .update({ supervisor_id: null })
+                .eq('supervisor_id', id);
+
+            if (updateError) throw updateError;
+        }
+
+        // ✅ حذف المراقب
         const { error } = await supabase
             .from('supervisors')
             .delete()
@@ -542,12 +837,13 @@ async function deleteSupervisor(id) {
         Swal.fire({
             icon: 'success',
             title: 'تم الحذف',
-            text: 'تم حذف المراقب بنجاح',
+            text: count > 0 ? `تم حذف المراقب وإزالة ارتباطه من ${count} مباراة` : 'تم حذف المراقب بنجاح',
             timer: 2000,
             showConfirmButton: false
         });
 
         await loadSupervisors();
+        applyFilters(); // ✅ تحديث الفلاتر
     } catch (error) {
         console.error('Error deleting supervisor:', error);
         Swal.fire({

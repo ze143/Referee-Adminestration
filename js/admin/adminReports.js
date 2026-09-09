@@ -22,15 +22,9 @@ async function init() {
         day: "numeric",
       });
 
-    // Set default dates
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    document.getElementById("reportDateFrom").value = firstDay
-      .toISOString()
-      .split("T")[0];
-    document.getElementById("reportDateTo").value = now
-      .toISOString()
-      .split("T")[0];
+    // ✅ إلغاء تعيين التواريخ الافتراضية (تكون فاضية)
+    document.getElementById("reportDateFrom").value = "";
+    document.getElementById("reportDateTo").value = "";
 
     // Event listeners
     document
@@ -49,7 +43,7 @@ async function init() {
       .getElementById("exportReportPdf")
       .addEventListener("click", exportReportPdf);
 
-    // Auto-generate initial report
+    // ✅ تحميل التقرير تلقائياً (بدون تاريخ = كل البيانات)
     await generateReport();
   } catch (error) {
     console.error("Init error:", error);
@@ -62,16 +56,6 @@ async function generateReport() {
     const reportType = document.getElementById("reportType").value;
     const dateFrom = document.getElementById("reportDateFrom").value;
     const dateTo = document.getElementById("reportDateTo").value;
-
-    if (!dateFrom || !dateTo) {
-      Swal.fire({
-        icon: "warning",
-        title: "تنبيه",
-        text: "الرجاء اختيار الفترة الزمنية",
-        confirmButtonText: "حسناً",
-      });
-      return;
-    }
 
     // Show loading
     const content = document.getElementById("reportContent");
@@ -123,7 +107,7 @@ async function generateReport() {
 // ============================================
 async function generateMatchesReport(dateFrom, dateTo) {
   try {
-    const { data: matchesData, error } = await supabase
+    let query = supabase
       .from("matches")
       .select(
         `
@@ -138,9 +122,17 @@ async function generateMatchesReport(dateFrom, dateTo) {
                 supervisor:supervisors!matches_supervisor_id_fkey(full_name)
             `,
       )
-      .gte("match_date", dateFrom)
-      .lte("match_date", dateTo)
       .order("match_date", { ascending: true });
+
+    // ✅ لو فيه تاريخ من، أضف الفلترة
+    if (dateFrom) {
+      query = query.gte("match_date", dateFrom);
+    }
+    if (dateTo) {
+      query = query.lte("match_date", dateTo);
+    }
+
+    const { data: matchesData, error } = await query;
 
     if (error) throw error;
 
@@ -189,7 +181,7 @@ async function generateMatchesReport(dateFrom, dateTo) {
 
       // Count upcoming and past
       const matchDate = new Date(match.match_date);
-      matchDate.setHours(0, 0, 0, 0); // ✅ تجاهل الوقت
+      matchDate.setHours(0, 0, 0, 0);
 
       if (matchDate >= today) {
         upcomingCount++;
@@ -209,8 +201,8 @@ async function generateMatchesReport(dateFrom, dateTo) {
       paidMatches: paidCount,
       upcomingMatches: upcomingCount,
       pastMatches: pastCount,
-      dateFrom: dateFrom,
-      dateTo: dateTo,
+      dateFrom: dateFrom || "الكل",
+      dateTo: dateTo || "الكل",
     };
   } catch (error) {
     console.error("Error generating matches report:", error);
@@ -231,8 +223,8 @@ async function generateRefereesReport(dateFrom, dateTo) {
 
     if (refError) throw refError;
 
-    // 2. جلب جميع المباريات في الفترة المحددة مع بيانات الحكام
-    const { data: matchesData, error: matchError } = await supabase
+    // 2. جلب المباريات (مع فلترة اختيارية)
+    let query = supabase
       .from("matches")
       .select(
         `
@@ -247,9 +239,16 @@ async function generateRefereesReport(dateFrom, dateTo) {
                 var_referee_id,
                 avar_referee_id
             `,
-      )
-      .gte("match_date", dateFrom)
-      .lte("match_date", dateTo);
+      );
+
+    if (dateFrom) {
+      query = query.gte("match_date", dateFrom);
+    }
+    if (dateTo) {
+      query = query.lte("match_date", dateTo);
+    }
+
+    const { data: matchesData, error: matchError } = await query;
 
     if (matchError) throw matchError;
 
@@ -280,12 +279,19 @@ async function generateRefereesReport(dateFrom, dateTo) {
     });
 
     // 4. جلب الأعذار لكل حكم
-    const { data: excusesData, error: excError } = await supabase
+    let excQuery = supabase
       .from("referee_excuses")
       .select("*")
-      .eq("status", "accepted")
-      .gte("excuse_date", dateFrom)
-      .lte("excuse_date", dateTo);
+      .eq("status", "accepted");
+
+    if (dateFrom) {
+      excQuery = excQuery.gte("excuse_date", dateFrom);
+    }
+    if (dateTo) {
+      excQuery = excQuery.lte("excuse_date", dateTo);
+    }
+
+    const { data: excusesData, error: excError } = await excQuery;
 
     if (excError) throw excError;
 
@@ -299,11 +305,18 @@ async function generateRefereesReport(dateFrom, dateTo) {
     });
 
     // 6. جلب سجل الإيقافات
-    const { data: suspensionsData, error: suspError } = await supabase
+    let suspQuery = supabase
       .from("suspensions_history")
-      .select("*")
-      .gte("start_date", dateFrom)
-      .lte("end_date", dateTo);
+      .select("*");
+
+    if (dateFrom) {
+      suspQuery = suspQuery.gte("start_date", dateFrom);
+    }
+    if (dateTo) {
+      suspQuery = suspQuery.lte("end_date", dateTo);
+    }
+
+    const { data: suspensionsData, error: suspError } = await suspQuery;
 
     if (suspError) throw suspError;
 
@@ -368,8 +381,8 @@ async function generateRefereesReport(dateFrom, dateTo) {
       suspendedReferees: suspendedReferees,
       totalMatches: totalMatches,
       totalExcuses: totalExcuses,
-      dateFrom: dateFrom,
-      dateTo: dateTo,
+      dateFrom: dateFrom || "الكل",
+      dateTo: dateTo || "الكل",
     };
   } catch (error) {
     console.error("Error generating referees report:", error);
@@ -390,8 +403,8 @@ async function generateSupervisorsReport(dateFrom, dateTo) {
 
     if (supError) throw supError;
 
-    // 2. جلب جميع المباريات في الفترة المحددة مع بيانات المراقب
-    const { data: matchesData, error: matchError } = await supabase
+    // 2. جلب المباريات (مع فلترة اختيارية)
+    let query = supabase
       .from("matches")
       .select(
         `
@@ -403,9 +416,16 @@ async function generateSupervisorsReport(dateFrom, dateTo) {
                 competition_id,
                 competitions!inner(name)
             `,
-      )
-      .gte("match_date", dateFrom)
-      .lte("match_date", dateTo);
+      );
+
+    if (dateFrom) {
+      query = query.gte("match_date", dateFrom);
+    }
+    if (dateTo) {
+      query = query.lte("match_date", dateTo);
+    }
+
+    const { data: matchesData, error: matchError } = await query;
 
     if (matchError) throw matchError;
 
@@ -460,8 +480,8 @@ async function generateSupervisorsReport(dateFrom, dateTo) {
       totalPaid: totalPaid,
       totalNotified: totalNotified,
       avgMatches: avgMatches,
-      dateFrom: dateFrom,
-      dateTo: dateTo,
+      dateFrom: dateFrom || "الكل",
+      dateTo: dateTo || "الكل",
     };
   } catch (error) {
     console.error("Error generating supervisors report:", error);
@@ -488,10 +508,15 @@ async function generateCompetitionsReport(dateFrom, dateTo) {
     if (error) throw error;
 
     const compStats = compsData?.map((comp) => {
-      const matches =
-        comp.matches?.filter(
-          (m) => m.match_date >= dateFrom && m.match_date <= dateTo,
-        ) || [];
+      let matches = comp.matches || [];
+
+      // ✅ فلترة المباريات حسب التاريخ (لو موجود)
+      if (dateFrom) {
+        matches = matches.filter((m) => m.match_date >= dateFrom);
+      }
+      if (dateTo) {
+        matches = matches.filter((m) => m.match_date <= dateTo);
+      }
 
       return {
         ...comp,
@@ -519,11 +544,102 @@ async function generateCompetitionsReport(dateFrom, dateTo) {
       totalTeams: totalTeams,
       totalPaid: totalPaid,
       totalNotified: totalNotified,
-      dateFrom: dateFrom,
-      dateTo: dateTo,
+      dateFrom: dateFrom || "الكل",
+      dateTo: dateTo || "الكل",
     };
   } catch (error) {
     console.error("Error generating competitions report:", error);
+    throw error;
+  }
+}
+
+// ============================================
+// ✅ Generate finance report
+// ============================================
+async function generateFinanceReport(dateFrom, dateTo) {
+  try {
+    let query = supabase
+      .from("matches")
+      .select(
+        `
+                *,
+                competitions!inner(name, match_fee, payout_source),
+                main_referee:referees!matches_main_referee_id_fkey(id, full_name),
+                fourth_referee:referees!matches_fourth_referee_id_fkey(id, full_name),
+                assistant1:referees!matches_assistant1_referee_id_fkey(id, full_name),
+                assistant2:referees!matches_assistant2_referee_id_fkey(id, full_name)
+            `,
+      )
+      .eq("competitions.payout_source", "federation");
+
+    if (dateFrom) {
+      query = query.gte("match_date", dateFrom);
+    }
+    if (dateTo) {
+      query = query.lte("match_date", dateTo);
+    }
+
+    const { data: matchesData, error } = await query;
+
+    if (error) throw error;
+
+    const financeMap = new Map();
+    let totalMatches = 0;
+    let totalFeesAll = 0;
+
+    matchesData?.forEach((match) => {
+      const fee = match.competitions?.match_fee || 0;
+      totalMatches++;
+      totalFeesAll += fee;
+
+      const referees = [
+        { ref: match.main_referee, weight: 1 },
+        { ref: match.fourth_referee, weight: 0.5 },
+        { ref: match.assistant1, weight: 0.75 },
+        { ref: match.assistant2, weight: 0.75 },
+      ];
+
+      referees.forEach(({ ref, weight }) => {
+        if (!ref) return;
+
+        if (!financeMap.has(ref.id)) {
+          financeMap.set(ref.id, {
+            referee_id: ref.id,
+            referee_name: ref.full_name,
+            total_fee: 0,
+            match_count: 0,
+            is_paid: match.is_paid,
+          });
+        }
+
+        const entry = financeMap.get(ref.id);
+        entry.total_fee += fee * weight;
+        entry.match_count += 1;
+      });
+    });
+
+    const financeData = Array.from(financeMap.values()).map((entry) => ({
+      ...entry,
+      deduction: entry.total_fee * 0.1,
+      net: entry.total_fee * 0.9,
+    }));
+
+    const totalFees = financeData.reduce((sum, f) => sum + f.total_fee, 0);
+    const totalReferees = financeData.length;
+
+    return {
+      type: "finance",
+      data: financeData,
+      totalReferees: totalReferees,
+      totalMatches: totalMatches,
+      totalFees: totalFees,
+      totalDeductions: totalFees * 0.1,
+      totalNet: totalFees * 0.9,
+      dateFrom: dateFrom || "الكل",
+      dateTo: dateTo || "الكل",
+    };
+  } catch (error) {
+    console.error("Error generating finance report:", error);
     throw error;
   }
 }
@@ -992,8 +1108,8 @@ function renderRefereesReport(data) {
                             <td>${ref.mainCount}</td>
                             <td>${(ref.assistant1Count || 0) + (ref.assistant2Count || 0)}</td>
                             <td>${ref.fourthCount || 0}</td>
-                            <td>${(ref.varCount || 0)}</td>
-                            <td>${(ref.avarCount || 0)}</td>
+                            <td>${ref.varCount || 0}</td>
+                            <td>${ref.avarCount || 0}</td>
                             <td>${ref.excuseCount || 0}</td>
                             <td>
                                 <span class="badge ${ref.isActive ? "bg-success" : "bg-danger"}">

@@ -1211,6 +1211,249 @@ function filterMatches() {
   renderMatches(filtered);
 }
 
+// ============================================
+// ✅ تعبئة قوائم الحكام مع التحقق من التوفر
+// ============================================
+
+async function populateRefereeDropdownsWithAvailability(
+  excludeRefereeId = null,
+  matchDate = null,
+  matchTime = null,
+  excludeMatchId = null,
+) {
+  const mainSelect = document.getElementById("mainReferee");
+  const mainReferees = getRefereesByRole("main", excludeRefereeId);
+  mainSelect.innerHTML = '<option value="">اختر الحكم الرئيسي</option>';
+
+  for (const ref of mainReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    // ✅ التحقق من الإيقاف دائمًا
+    if (ref.is_suspended) {
+      disabled = true;
+      extraClass = "text-danger opacity-50";
+      extraText = " 🚫 موقوف";
+    }
+
+    // ✅ التحقق من تعارض التوقيت (لو فيه تاريخ ووقت)
+    if (matchDate && matchTime && !disabled) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` ⚠️ ${availability.reason}`;
+      }
+    }
+
+    mainSelect.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // ===== الحكم الرابع =====
+  const fourthSelect = document.getElementById("fourthReferee");
+  const fourthReferees = getRefereesByRole("main", excludeRefereeId);
+  fourthSelect.innerHTML = '<option value="">اختر الحكم الرابع</option>';
+
+  for (const ref of fourthReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (ref.is_suspended) {
+      disabled = true;
+      extraClass = "text-danger opacity-50";
+      extraText = " 🚫 موقوف";
+    }
+
+    if (matchDate && matchTime && !disabled) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` ⚠️ ${availability.reason}`;
+      }
+    }
+
+    fourthSelect.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // ===== مساعد أول =====
+  const assistant1Select = document.getElementById("assistant1");
+  const assistantReferees = getRefereesByRole("assistant", excludeRefereeId);
+  assistant1Select.innerHTML = '<option value="">اختر مساعد أول</option>';
+
+  for (const ref of assistantReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (ref.is_suspended) {
+      disabled = true;
+      extraClass = "text-danger opacity-50";
+      extraText = " 🚫 موقوف";
+    }
+
+    if (matchDate && matchTime && !disabled) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` ⚠️ ${availability.reason}`;
+      }
+    }
+
+    assistant1Select.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // ===== مساعد ثاني =====
+  const assistant2Select = document.getElementById("assistant2");
+  const assistantReferees2 = getRefereesByRole("assistant", excludeRefereeId);
+  assistant2Select.innerHTML = '<option value="">اختر مساعد ثاني</option>';
+
+  for (const ref of assistantReferees2) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (ref.is_suspended) {
+      disabled = true;
+      extraClass = "text-danger opacity-50";
+      extraText = " 🚫 موقوف";
+    }
+
+    if (matchDate && matchTime && !disabled) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` ⚠️ ${availability.reason}`;
+      }
+    }
+
+    assistant2Select.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // ===== حكم VAR =====
+  const varSelect = document.getElementById("varReferee");
+  const varReferees = getRefereesByRole("var", excludeRefereeId);
+  varSelect.innerHTML = '<option value="">اختر حكم VAR</option>';
+
+  for (const ref of varReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (ref.is_suspended) {
+      disabled = true;
+      extraClass = "text-danger opacity-50";
+      extraText = " 🚫 موقوف";
+    }
+
+    if (matchDate && matchTime && !disabled) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` ⚠️ ${availability.reason}`;
+      }
+    }
+
+    varSelect.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // ===== حكم AVAR =====
+  const avarSelect = document.getElementById("avarReferee");
+  const avarReferees = getRefereesByRole("avar", excludeRefereeId);
+  avarSelect.innerHTML = '<option value="">اختر حكم AVAR</option>';
+
+  for (const ref of avarReferees) {
+    const displayText = getRefereeDisplayText(ref);
+    let disabled = false;
+    let extraClass = "";
+    let extraText = "";
+
+    if (ref.is_suspended) {
+      disabled = true;
+      extraClass = "text-danger opacity-50";
+      extraText = " 🚫 موقوف";
+    }
+
+    if (matchDate && matchTime && !disabled) {
+      const availability = await checkRefereeAvailabilityForDropdown(
+        ref.id,
+        matchDate,
+        matchTime,
+        excludeMatchId,
+      );
+      if (!availability.available) {
+        disabled = true;
+        extraClass = "text-danger opacity-50";
+        extraText = ` ⚠️ ${availability.reason}`;
+      }
+    }
+
+    avarSelect.innerHTML += `
+            <option value="${ref.id}" ${disabled ? "disabled" : ""} class="${extraClass}">
+                ${displayText}${extraText}
+            </option>
+        `;
+  }
+
+  // ✅ تفعيل Select2 بعد التعبئة
+  initSelect2();
+}
+
 function openAddMatchModal() {
   document.getElementById("matchModalTitle").textContent = "إضافة مباراة جديدة";
   document.getElementById("matchForm").reset();

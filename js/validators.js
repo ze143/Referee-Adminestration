@@ -58,40 +58,9 @@ export const validateRefereeAvailability = async (
       };
     }
 
-    // Check match conflicts
-    let query = supabase
-      .from("matches")
-      .select(
-        "id, match_time, main_referee_id, fourth_referee_id, assistant1_referee_id, assistant2_referee_id",
-      )
-      .eq("match_date", matchDate)
-      .eq("match_time", matchTime);
-
-    if (excludeMatchId) {
-      query = query.neq("id", excludeMatchId);
-    }
-
-    const { data: conflicts, error: confError } = await query;
-
-    if (confError) throw confError;
-
-    if (conflicts && conflicts.length > 0) {
-      const hasConflict = conflicts.some(
-        (match) =>
-          match.main_referee_id === refereeId ||
-          match.fourth_referee_id === refereeId ||
-          match.assistant1_referee_id === refereeId ||
-          match.assistant2_referee_id === refereeId,
-      );
-
-      if (hasConflict) {
-        return {
-          valid: false,
-          error: `الحكم ${referee.full_name} لديه مباراة أخرى في نفس التوقيت`,
-          type: "conflict",
-        };
-      }
-    }
+    // ✅ تم إلغاء منع التعارض الزمني بناءً على طلب المستخدم
+    // التعارض يُعالج في saveMatch عبر has_conflict (تمييز بصري فقط)
+    // لا يوجد return هنا للتعارض
 
     return { valid: true };
   } catch (error) {
@@ -148,7 +117,7 @@ export const validateMatchData = async (matchData) => {
     errors.push("الفريق الضيف لا ينتمي إلى هذه المسابقة");
   }
 
-  // التحقق من توفر الحكام
+  // ✅ التحقق من الحكام (الإيقاف والعذر فقط - بدون منع التعارض)
   const refereeFields = [
     { id: matchData.main_referee_id, label: "الحكم الرئيسي" },
     { id: matchData.fourth_referee_id, label: "الحكم الرابع" },
@@ -165,7 +134,11 @@ export const validateMatchData = async (matchData) => {
         matchData.id,
       );
       if (!result.valid) {
-        errors.push(`${field.label}: ${result.error}`);
+        // ✅ منع الإيقاف والعذر فقط
+        if (result.type === "suspension" || result.type === "excuse") {
+          errors.push(`${field.label}: ${result.error}`);
+        }
+        // ❌ لا نضيف خطأ للتعارض
       }
     }
   }

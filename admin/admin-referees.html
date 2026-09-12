@@ -14,6 +14,23 @@
       rel="stylesheet"
     />
     <link href="../assets/css/custom-sports-theme.css" rel="stylesheet" />
+
+    <style>
+      /* ✅ تمييز الحكم اللي عنده تعارض */
+      .referee-conflict-row {
+        background-color: #fff3cd !important;
+        border-right: 4px solid #ff9800 !important;
+      }
+      .referee-conflict-row:hover {
+        background-color: #ffe0b2 !important;
+      }
+
+      /* ✅ badge التعارض */
+      .badge.bg-warning.text-dark {
+        font-size: 0.7rem;
+        padding: 2px 6px;
+      }
+    </style>
   </head>
   <body>
     <!-- Sidebar -->
@@ -97,19 +114,39 @@
 
       <!-- Content -->
       <div class="content-wrapper">
-        <!-- Filters -->
+        <!-- Filters Section -->
         <div class="glass-card mb-4">
           <div class="card-body">
             <div class="row g-3">
-              <div class="col-md-4">
+              <!-- بحث بالاسم -->
+              <div class="col-md-3">
                 <input
                   type="text"
                   class="form-control"
                   id="searchReferee"
-                  placeholder="بحث عن حكم..."
+                  placeholder=" ابحث بالاسم أو المنطقة أو الهاتف..."
                 />
               </div>
-              <div class="col-md-3">
+
+              <!-- فلتر المنطقة -->
+              <div class="col-md-2">
+                <select class="form-select" id="filterRegion">
+                  <option value=""> جميع المناطق</option>
+                </select>
+              </div>
+
+              <!-- فلتر الوظيفة -->
+              <div class="col-md-2">
+                <select class="form-select" id="filterJob">
+                  <option value="">جميع الوظائف</option>
+                  <option value="referee">حكم</option>
+                  <option value="assistant">حكم مساعد</option>
+                  <option value="both">حكم وحكم مساعد</option>
+                </select>
+              </div>
+
+              <!-- فلتر الدرجة -->
+              <div class="col-md-2">
                 <select class="form-select" id="filterDegree">
                   <option value="">جميع الدرجات</option>
                   <option value="1st">درجة أولى</option>
@@ -119,16 +156,21 @@
                   <option value="New">جدد</option>
                 </select>
               </div>
-              <div class="col-md-3">
+
+              <!-- فلتر الحالة -->
+              <div class="col-md-2">
                 <select class="form-select" id="filterStatus">
                   <option value="">جميع الحالات</option>
                   <option value="active">نشط</option>
                   <option value="suspended">موقوف</option>
+                  <option value="conflict">لديه تعارض ⚠️</option>
                 </select>
               </div>
-              <div class="col-md-2">
+
+              <!-- زر إضافة حكم -->
+              <div class="col-md-1">
                 <button class="btn btn-primary w-100" id="addRefereeBtn">
-                  <i class="fas fa-plus me-2"></i>إضافة حكم
+                  <i class="fas fa-plus"> </i> إضافة
                 </button>
               </div>
             </div>

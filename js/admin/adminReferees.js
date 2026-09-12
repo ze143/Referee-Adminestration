@@ -24,7 +24,6 @@ async function init() {
 
     await loadReferees();
 
-    // Setup event listeners
     document
       .getElementById("logoutBtn")
       .addEventListener("click", handleLogout);
@@ -44,7 +43,6 @@ async function init() {
       .getElementById("removeSuspensionBtn")
       .addEventListener("click", removeSuspension);
 
-    // Filter events
     document
       .getElementById("searchReferee")
       .addEventListener("input", filterReferees);
@@ -54,12 +52,17 @@ async function init() {
     document
       .getElementById("filterStatus")
       .addEventListener("change", filterReferees);
+    document
+      .getElementById("filterRegion")
+      .addEventListener("change", filterReferees);
+    document
+      .getElementById("filterJob")
+      .addEventListener("change", filterReferees);
   } catch (error) {
     console.error("Init error:", error);
   }
 }
 
-// Load referees
 async function loadReferees() {
   try {
     const { data, error } = await supabase
@@ -69,7 +72,58 @@ async function loadReferees() {
 
     if (error) throw error;
 
-    allReferees = data || [];
+    // ✅ احسب التعارضات لكل حكم
+    const { data: matchesWithConflicts } = await supabase
+      .from("matches")
+      .select(`
+        id, 
+        conflict_details, 
+        match_date,
+        match_time,
+        competition_id,
+        competitions!inner(name),
+        home_team:teams!matches_home_team_id_fkey(name),
+        away_team:teams!matches_away_team_id_fkey(name)
+      `)
+      .eq("has_conflict", true);
+
+    // ✅ ابنِ map للتعارضات
+    const conflictsMap = {};
+    matchesWithConflicts?.forEach((match) => {
+      if (match.conflict_details) {
+        try {
+          const conflicts = JSON.parse(match.conflict_details);
+          conflicts.forEach((c) => {
+            if (!conflictsMap[c.name]) {
+              conflictsMap[c.name] = [];
+            }
+            conflictsMap[c.name].push({
+              matchId: match.id,
+              matchDate: match.match_date,
+              matchTime: match.match_time,
+              competition: match.competitions?.name || "غير محدد",
+              homeTeam: match.home_team?.name || "-",
+              awayTeam: match.away_team?.name || "-",
+              conflictMatchDate: c.conflictMatch?.match_date,
+              conflictMatchTime: c.conflictMatch?.match_time,
+              diffMinutes: c.diffMinutes,
+              diffHours: Math.round((c.diffMinutes || 0) / 60),
+            });
+          });
+        } catch (e) {
+          console.error("Error parsing conflicts:", e);
+        }
+      }
+    });
+
+    // ✅ أضف عدد التعارضات لكل حكم
+    allReferees = (data || []).map((ref) => ({
+      ...ref,
+      conflicts: conflictsMap[ref.full_name] || [],
+      hasConflicts: (conflictsMap[ref.full_name] || []).length > 0,
+    }));
+
+    populateRegionFilter();
     renderReferees(allReferees);
   } catch (error) {
     console.error("Error loading referees:", error);
@@ -82,8 +136,22 @@ async function loadReferees() {
   }
 }
 
-// adminReferees.js - تحديث دالة renderReferees
+// ✅ تعبئة فلتر المنطقة ديناميكياً
+function populateRegionFilter() {
+  const select = document.getElementById("filterRegion");
+  if (!select) return;
 
+  const regions = [
+    ...new Set(allReferees.map((r) => r.region).filter(Boolean)),
+  ].sort();
+
+  select.innerHTML = '<option value="">جميع المناطق</option>';
+  regions.forEach((region) => {
+    select.innerHTML += `<option value="${region}">${region}</option>`;
+  });
+}
+
+// Render referees
 function renderReferees(referees) {
   const tbody = document.getElementById("refereesBody");
   tbody.innerHTML = "";
@@ -101,7 +169,12 @@ function renderReferees(referees) {
 
   referees.forEach((referee) => {
     const tr = document.createElement("tr");
+    const hasConflicts = referee.hasConflicts === true;
 
+    if (hasConflicts) {
+      tr.className = "referee-conflict-row";
+      tr.title = `⚠️ هذا الحكم لديه ${referee.conflicts.length} تعارض في التوقيت`;
+    }
     const isSuspended = referee.is_suspended;
     const degreeNames = {
       "1st": "درجة أولى",
@@ -117,7 +190,6 @@ function renderReferees(referees) {
       both: "حكم وحكم مساعد",
     };
 
-    // حساب العمر
     let age = "-";
     if (referee.birth_date) {
       const birthDate = new Date(referee.birth_date);
@@ -129,7 +201,6 @@ function renderReferees(referees) {
       }
     }
 
-    // عرض صلاحيات VAR
     let varBadges = "";
     if (referee.has_var_license) {
       varBadges += '<span class="badge bg-danger me-1">VAR</span>';
@@ -142,7 +213,10 @@ function renderReferees(referees) {
     }
 
     tr.innerHTML = `
-            <td><strong>${referee.full_name || "-"}</strong></td>
+    <td>
+      <strong>${referee.full_name || "-"}</strong>
+      ${hasConflicts ? `<span class="badge bg-warning text-dark ms-1" title="لديه ${referee.conflicts.length} تعارض">⚠️ ${referee.conflicts.length}</span>` : ""}
+    </td>
             <td>${referee.region || "-"}</td>
             <td><span class="badge bg-secondary">${age}</span></td>
             <td><span class="badge bg-info">${degreeNames[referee.degree] || referee.degree}</span></td>
@@ -180,7 +254,6 @@ function renderReferees(referees) {
     tbody.appendChild(tr);
   });
 
-  // Add event listeners to buttons
   document.querySelectorAll(".view-referee").forEach((btn) => {
     btn.addEventListener("click", () => viewRefereeDetails(btn.dataset.id));
   });
@@ -195,11 +268,12 @@ function renderReferees(referees) {
   });
 }
 
-// Filter referees
 function filterReferees() {
   const search = document.getElementById("searchReferee").value.toLowerCase();
   const degree = document.getElementById("filterDegree").value;
   const status = document.getElementById("filterStatus").value;
+  const region = document.getElementById("filterRegion").value;
+  const job = document.getElementById("filterJob").value;
 
   let filtered = allReferees.filter((referee) => {
     const matchSearch =
@@ -207,12 +281,15 @@ function filterReferees() {
       (referee.region && referee.region.includes(search)) ||
       (referee.phone && referee.phone.includes(search));
     const matchDegree = !degree || referee.degree === degree;
+    const matchRegion = !region || referee.region === region;
+    const matchJob = !job || referee.job === job;
 
     let matchStatus = true;
     if (status === "active") matchStatus = !referee.is_suspended;
     else if (status === "suspended") matchStatus = referee.is_suspended;
+    else if (status === "conflict") matchStatus = referee.hasConflicts === true;
 
-    return matchSearch && matchDegree && matchStatus;
+    return matchSearch && matchDegree && matchStatus && matchRegion && matchJob;
   });
 
   renderReferees(filtered);
@@ -225,7 +302,6 @@ function openAddRefereeModal() {
   document.getElementById("refereeId").value = "";
   document.getElementById("refereeModal").dataset.mode = "add";
 
-  // تعيين القيم الافتراضية
   document.getElementById("job").value = "referee";
   document.getElementById("degree").value = "3rd";
 
@@ -233,8 +309,7 @@ function openAddRefereeModal() {
   modal.show();
 }
 
-// adminReferees.js - تحديث دالة editReferee
-
+// Edit referee
 async function editReferee(id) {
   try {
     const { data, error } = await supabase
@@ -256,7 +331,6 @@ async function editReferee(id) {
     document.getElementById("phone").value = data.phone || "";
     document.getElementById("address").value = data.address || "";
 
-    // ✅ تعيين صلاحيات VAR
     document.getElementById("hasVarLicense").checked =
       data.has_var_license || false;
     document.getElementById("hasAvarLicense").checked =
@@ -277,8 +351,7 @@ async function editReferee(id) {
   }
 }
 
-// adminReferees.js - تحديث دالة saveReferee
-
+// Save referee
 async function saveReferee() {
   try {
     const id = document.getElementById("refereeId").value;
@@ -292,12 +365,10 @@ async function saveReferee() {
       job: document.getElementById("job").value,
       phone: document.getElementById("phone").value.trim(),
       address: document.getElementById("address").value.trim(),
-      // ✅ إضافة صلاحيات VAR
       has_var_license: document.getElementById("hasVarLicense").checked,
       has_avar_license: document.getElementById("hasAvarLicense").checked,
     };
 
-    // Validate
     if (!data.full_name || !data.region || !data.birth_date || !data.degree) {
       Swal.fire({
         icon: "warning",
@@ -308,7 +379,6 @@ async function saveReferee() {
       return;
     }
 
-    // التحقق من عدم تكرار الاسم
     let checkQuery = supabase
       .from("referees")
       .select("id")
@@ -569,10 +639,6 @@ async function removeSuspension() {
   }
 }
 
-// adminReferees.js - دالة viewRefereeDetails كاملة مع العمر
-
-// adminReferees.js - دالة viewRefereeDetails كاملة مع VAR
-
 // View referee details
 async function viewRefereeDetails(id) {
   try {
@@ -607,7 +673,42 @@ async function viewRefereeDetails(id) {
 
     if (matchError) throw matchError;
 
-    // 3. جلب سجل الأعذار كامل مع بيانات المباراة
+    // ✅ 3. بناء سجل التعارضات (مثل سجل الأعذار)
+    const conflictRecords = [];
+
+    matches?.forEach((match) => {
+      if (match.has_conflict && match.conflict_details) {
+        try {
+          const conflicts = JSON.parse(match.conflict_details);
+          conflicts.forEach((c) => {
+            if (c.name === referee.full_name) {
+              conflictRecords.push({
+                matchId: match.id,
+                matchDate: match.match_date,
+                matchTime: match.match_time,
+                competition: match.competitions?.name || "غير محدد",
+                homeTeam: match.home_team?.name || "-",
+                awayTeam: match.away_team?.name || "-",
+                stadium: match.stadium || "-",
+                conflictMatchDate: c.conflictMatch?.match_date,
+                conflictMatchTime: c.conflictMatch?.match_time,
+                diffMinutes: c.diffMinutes,
+                diffHours: Math.round((c.diffMinutes || 0) / 60),
+              });
+            }
+          });
+        } catch (e) {
+          console.error("Error parsing conflict:", e);
+        }
+      }
+    });
+
+    // ترتيب حسب التاريخ (الأحدث أولاً)
+    conflictRecords.sort(
+      (a, b) => new Date(b.matchDate) - new Date(a.matchDate),
+    );
+
+    // 4. جلب سجل الأعذار كامل مع بيانات المباراة
     const { data: excuses, error: excError } = await supabase
       .from("referee_excuses")
       .select(
@@ -629,7 +730,7 @@ async function viewRefereeDetails(id) {
 
     if (excError) throw excError;
 
-    // 4. جلب سجل الإيقافات
+    // 5. جلب سجل الإيقافات
     const { data: suspensions, error: suspError } = await supabase
       .from("suspensions_history")
       .select("*")
@@ -638,7 +739,7 @@ async function viewRefereeDetails(id) {
 
     if (suspError) throw suspError;
 
-    // 5. إحصائيات المباريات
+    // 6. إحصائيات المباريات
     const totalMatches = matches?.length || 0;
     const mainMatches =
       matches?.filter((m) => m.main_referee_id === id).length || 0;
@@ -649,7 +750,7 @@ async function viewRefereeDetails(id) {
     const fourthMatches =
       matches?.filter((m) => m.fourth_referee_id === id).length || 0;
 
-    // 6. المباريات حسب المسابقة
+    // 7. المباريات حسب المسابقة
     const matchesByCompetition = {};
     matches?.forEach((match) => {
       const compName = match.competitions?.name || "غير محدد";
@@ -659,7 +760,7 @@ async function viewRefereeDetails(id) {
       matchesByCompetition[compName].push(match);
     });
 
-    // 7. حساب العمر من تاريخ الميلاد
+    // 8. حساب العمر
     let age = "-";
     let ageDisplay = "";
     if (referee.birth_date) {
@@ -693,7 +794,7 @@ async function viewRefereeDetails(id) {
       rejected: "مرفوض",
     };
 
-    // 8. بناء المحتوى
+    // 9. بناء المحتوى
     const content = document.getElementById("refereeDetailsContent");
     content.innerHTML = `
             <div class="row">
@@ -704,6 +805,11 @@ async function viewRefereeDetails(id) {
                         <span class="badge ${referee.is_suspended ? "bg-danger" : "bg-success"}">
                             ${referee.is_suspended ? "موقوف" : "نشط"}
                         </span>
+                        ${
+                          conflictRecords.length > 0
+                            ? `<span class="badge bg-warning text-dark ms-1">⚠️ ${conflictRecords.length} تعارض</span>`
+                            : ""
+                        }
                         ${
                           referee.is_suspended && referee.suspension_until
                             ? `
@@ -735,7 +841,6 @@ async function viewRefereeDetails(id) {
                             <i class="fas fa-briefcase text-primary"></i>
                             <span><strong>الوظيفة:</strong> ${jobNames[referee.job] || referee.job || "-"}</span>
                         </div>
-                        <!-- ✅ صلاحيات VAR - تم إضافتها هنا -->
                         <div class="info-item">
                             <i class="fas fa-video text-danger"></i>
                             <span>
@@ -871,6 +976,65 @@ async function viewRefereeDetails(id) {
                         </table>
                     </div>
 
+                    <!-- ✅ سجل التعارضات (مثل سجل الأعذار) -->
+                    <h5 class="mb-3">
+                        <i class="fas fa-exclamation-triangle me-2 text-warning"></i>
+                        سجل التعارضات
+                        ${
+                          conflictRecords.length > 0
+                            ? `<span class="badge bg-warning text-dark ms-2">${conflictRecords.length}</span>`
+                            : ""
+                        }
+                    </h5>
+                    ${
+                      conflictRecords.length > 0
+                        ? `
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            هذا الحكم لديه <strong>${conflictRecords.length}</strong> تعارض في التوقيت خلال 48 ساعة
+                        </div>
+                        <div class="table-responsive mb-4">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>التاريخ</th>
+                                        <th>الوقت</th>
+                                        <th>المباراة</th>
+                                        <th>المسابقة</th>
+                                        <th>التعارض</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${conflictRecords
+                                      .map(
+                                        (c) => `
+                                        <tr class="table-warning">
+                                            <td>${new Date(c.matchDate).toLocaleDateString("ar-EG")}</td>
+                                            <td>${formatTime(c.matchTime)}</td>
+                                            <td>
+                                                <strong>${c.homeTeam}</strong>
+                                                ×
+                                                <strong>${c.awayTeam}</strong>
+                                            </td>
+                                            <td>${c.competition}</td>
+                                            <td>
+                                                <span class="badge bg-warning text-dark">
+                                                    مباراة أخرى في ${new Date(c.conflictMatchDate).toLocaleDateString("ar-EG")} الساعة ${formatTime(c.conflictMatchTime)} (الفارق ${c.diffHours} ساعة)
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    `,
+                                      )
+                                      .join("")}
+                                </tbody>
+                            </table>
+                        </div>
+                    `
+                        : `
+                        <p class="text-muted mb-4"> لا توجد تعارضات في التوقيت</p>
+                    `
+                    }
+
                     <!-- سجل الأعذار كامل مع بيانات المباراة -->
                     <h5 class="mb-3"><i class="fas fa-calendar-times me-2"></i>سجل الأعذار</h5>
                     ${
@@ -922,7 +1086,7 @@ async function viewRefereeDetails(id) {
                         </div>
                     `
                         : `
-                        <p class="text-muted">لا توجد أعذار مسجلة</p>
+                        <p class="text-muted mb-4">لا توجد أعذار مسجلة</p>
                     `
                     }
 
@@ -976,6 +1140,33 @@ async function viewRefereeDetails(id) {
       text: "حدث خطأ في تحميل تفاصيل الحكم",
       confirmButtonText: "حسناً",
     });
+  }
+}
+
+// ✅ دالة تنسيق الوقت
+function formatTime(timeString) {
+  if (!timeString) return "-";
+
+  if (timeString.includes("ص") || timeString.includes("م")) {
+    return timeString;
+  }
+
+  try {
+    let parts = timeString.split(":");
+    let hours = parseInt(parts[0]);
+    let minutes = parts[1];
+
+    let ampm = hours >= 12 ? "م" : "ص";
+
+    if (hours > 12) {
+      hours = hours - 12;
+    } else if (hours === 0) {
+      hours = 12;
+    }
+
+    return `${hours}.${minutes} ${ampm}`;
+  } catch (e) {
+    return timeString;
   }
 }
 

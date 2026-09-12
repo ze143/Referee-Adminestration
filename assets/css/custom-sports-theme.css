@@ -2679,3 +2679,55 @@ body {
 .select2-container--open {
     z-index: 9999 !important;
 }
+
+/* ✅ badge المجموعة */
+.badge.bg-purple {
+    background-color: #9c27b0 !important;
+    color: white;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 8px;
+}
+
+/* ✅ تمييز الحكم المتعارض */
+option.text-warning {
+    color: #ff9800 !important;
+    font-weight: bold;
+}
+
+/* ✅ تحسين عرض Select2 للحكم المتعارض */
+.select2-results__option.text-warning {
+    color: #ff9800 !important;
+    background-color: #fff3e0 !important;
+    font-weight: bold;
+}
+
+.select2-results__option.text-warning:hover {
+    background-color: #ffe0b2 !important;
+}
+
+/* ✅ تمييز المباراة اللي فيها تعارض */
+.match-conflict-row {
+    background-color: #fff3cd !important;
+    border-right: 4px solid #ff9800 !important;
+}
+
+.match-conflict-row:hover {
+    background-color: #ffe0b2 !important;
+}
+
+/* ✅ تمييز الحكم المتعارض في الدروب داون */
+option.text-warning {
+    color: #ff9800 !important;
+    font-weight: bold;
+}
+
+.select2-results__option.text-warning {
+    color: #ff9800 !important;
+    background-color: #fff3e0 !important;
+    font-weight: bold;
+}
+
+.select2-results__option.text-warning:hover {
+    background-color: #ffe0b2 !important;
+}

@@ -36,17 +36,23 @@
         min-height: 38px;
         border-radius: 0.375rem;
       }
-      .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+      .select2-container--bootstrap-5
+        .select2-selection--single
+        .select2-selection__rendered {
         padding: 0.375rem 0.75rem;
         line-height: 1.5;
       }
-      .select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+      .select2-container--bootstrap-5
+        .select2-selection--single
+        .select2-selection__arrow {
         height: 38px;
       }
       .select2-container--bootstrap-5 .select2-dropdown {
         border-radius: 0.375rem;
       }
-      .select2-container--bootstrap-5 .select2-search--dropdown .select2-search__field {
+      .select2-container--bootstrap-5
+        .select2-search--dropdown
+        .select2-search__field {
         border-radius: 0.375rem;
       }
     </style>
@@ -138,37 +144,55 @@
         <!-- Filters & Actions -->
         <div class="glass-card mb-4">
           <div class="card-body">
-            <div class="row g-3">
+            <div class="row g-2 align-items-end">
+              <!-- المسابقة -->
               <div class="col-md-2">
                 <select class="form-select" id="filterCompetition">
                   <option value="">جميع المسابقات</option>
                 </select>
               </div>
+
+              <!-- ✅ فلتر المجموعة -->
+              <div class="col-md-2">
+                <select class="form-select" id="filterGroup">
+                  <option value="">جميع المجموعات</option>
+                </select>
+              </div>
+
+              <!-- التاريخ -->
               <div class="col-md-2">
                 <input type="date" class="form-control" id="filterDate" />
               </div>
-              <div class="col-md-2">
+
+              <!-- الحالة -->
+              <div class="col-md-1">
                 <select class="form-select" id="filterStatus">
                   <option value="upcoming">قادمة</option>
                   <option value="past">منتهية</option>
                 </select>
               </div>
+
+              <!-- الترتيب -->
               <div class="col-md-2">
                 <select class="form-select" id="filterSort">
-                  <option value="oldest">الأقدم أولاً</option>
-                  <option value="newest">الأحدث أولاً</option>
+                  <option value="oldest">الأقدم</option>
+                  <option value="newest">الأحدث</option>
                 </select>
               </div>
+
+              <!-- حالة التبليغ -->
               <div class="col-md-2">
                 <select class="form-select" id="filterNotified">
-                  <option value="">جميع الحالات</option>
-                  <option value="notified">مبلغ عنه</option>
+                  <option value="">الكل</option>
+                  <option value="notified">مبلغ</option>
                   <option value="not_notified">غير مبلغ</option>
                 </select>
               </div>
-              <div class="col-md-2">
+
+              <!-- زر الإضافة -->
+              <div class="col-md-1">
                 <button class="btn btn-primary w-100" id="addMatchBtn">
-                  <i class="fas fa-plus me-2"></i>إضافة مباراة
+                  <i class="fas fa-plus"></i> إضافة
                 </button>
               </div>
             </div>
@@ -186,14 +210,16 @@
               >
                 <thead>
                   <tr>
-                    <th style="width: 8%">المسابقة</th>
-                    <th style="width: 8%">التاريخ</th>
-                    <th style="width: 6%">الوقت</th>
+                    <th style="width: 7%">المسابقة</th>
+                    <th style="width: 8%">المجموعة</th>
+                    <!-- ✅ عمود جديد -->
+                    <th style="width: 7%">التاريخ</th>
+                    <th style="width: 5%">الوقت</th>
                     <th style="width: 6%">الملعب</th>
                     <th style="width: 6%">المضيف</th>
                     <th style="width: 6%">الضيف</th>
-                    <th style="width: 35%">طاقم الحكام</th>
-                    <th style="width: 15%">ملاحظات</th>
+                    <th style="width: 33%">طاقم الحكام</th>
+                    <th style="width: 12%">ملاحظات</th>
                     <th style="width: 10%">إجراءات</th>
                   </tr>
                 </thead>

@@ -1,4 +1,4 @@
-// adminMatches.js - النسخة النهائية مع تنسيق الوقت 12 ساعة وإظهار درجة الحكم ومنع الموقوفين والمتعارضين + Select2
+// adminMatches.js - النسخة النهائية (إلغاء منع التعارض - تمييز فقط)
 import { supabase } from "../supabaseClient.js";
 import { requireAuth, logout } from "../auth.js";
 import {
@@ -14,27 +14,24 @@ let allCompetitions = [];
 let allTeams = [];
 let allSupervisors = [];
 let currentMatchId = null;
-let refereeMatchCounts = {}; // ✅ لتخزين عدد مباريات كل حكم في المسابقة المختارة
+let refereeMatchCounts = {};
+let allGroups = [];
 
 // ✅ دالة مساعدة لتنسيق الوقت من 24 ساعة إلى 12 ساعة (عربي)
 function formatTime(timeString) {
   if (!timeString) return "-";
 
-  // إذا كان الوقت بالفعل بصيغة 12 ساعة (يحتوي على ص/م)
   if (timeString.includes("ص") || timeString.includes("م")) {
     return timeString;
   }
 
   try {
-    // استخراج الساعات والدقائق
     let parts = timeString.split(":");
     let hours = parseInt(parts[0]);
     let minutes = parts[1];
 
-    // تحديد ص أو م
     let ampm = hours >= 12 ? "م" : "ص";
 
-    // تحويل إلى 12 ساعة
     if (hours > 12) {
       hours = hours - 12;
     } else if (hours === 0) {
@@ -49,7 +46,6 @@ function formatTime(timeString) {
 
 // ✅ تفعيل Select2 على جميع دروب داون الحكام
 function initSelect2() {
-  // تأكد من وجود jQuery و Select2
   if (typeof $ === "undefined" || typeof $.fn.select2 === "undefined") {
     console.warn("Select2 not loaded");
     return;
@@ -58,12 +54,10 @@ function initSelect2() {
   const selects = document.querySelectorAll("#matchForm .select2");
   selects.forEach((select) => {
     try {
-      // تدمير الـ instance القديم بشكل صحيح
       if ($(select).data("select2")) {
         $(select).select2("destroy");
       }
 
-      // إزالة أي class قديمة
       $(select).removeClass("select2-hidden-accessible");
       $(select).next(".select2-container").remove();
 
@@ -80,21 +74,18 @@ function initSelect2() {
             return "لا توجد نتائج";
           },
         },
-        dropdownParent: $("#matchModal"), // ✅ لمنع ظهور القائمة خلف المودال
+        dropdownParent: $("#matchModal"),
       });
     } catch (e) {
       console.warn("Error initializing Select2 for:", select.id, e);
     }
   });
 
-  // ✅ تفعيل التركيز التلقائي عند النقر على أي دروب داون
   setTimeout(() => {
     const selects = document.querySelectorAll("#matchForm .select2");
     selects.forEach((select) => {
-      // إزالة المستمعات القديمة
       $(select).off("select2:open");
 
-      // عند فتح القائمة، ركز على مربع البحث
       $(select).on("select2:open", function (e) {
         setTimeout(() => {
           const searchInput = document.querySelector(".select2-search__field");
@@ -113,7 +104,6 @@ function setSelect2Value(selectId, value) {
   const select = document.getElementById(selectId);
   if (select) {
     select.value = value || "";
-    // تأكد من أن Select2 موجود
     if ($(select).data("select2")) {
       $(select).trigger("change");
     }
@@ -142,10 +132,6 @@ async function init() {
     await loadSupervisors();
     await loadMatches();
 
-    // ============================================
-    // ✅ إضافة مستمعات الفلاتر والترتيب
-    // ============================================
-
     // 1. مستمعات الفلاتر الأساسية
     document
       .getElementById("filterCompetition")
@@ -159,19 +145,20 @@ async function init() {
       .getElementById("filterStatus")
       .addEventListener("change", filterMatches);
 
-    // 2. ✅ مستمع ترتيب المباريات (أحدث/أقدم)
+    // 2. ✅ مستمع ترتيب المباريات
     document
       .getElementById("filterSort")
       .addEventListener("change", filterMatches);
 
-    // 3. ✅ مستمع فلترة التبليغ (مبلغ/غير مبلغ)
+    // 3. ✅ مستمع فلترة التبليغ
     document
       .getElementById("filterNotified")
       .addEventListener("change", filterMatches);
 
-    // ============================================
-    // باقي المستمعات
-    // ============================================
+    // 4. ✅ مستمع فلتر المجموعة
+    document
+      .getElementById("filterGroup")
+      .addEventListener("change", filterMatches);
 
     // Setup event listeners
     document
@@ -196,9 +183,7 @@ async function init() {
         updateTeamDropdowns();
         checkAndToggleVar(this.value);
 
-        // ✅ تحديث عدد مباريات الحكام عند اختيار المسابقة
         await loadRefereeMatchCounts(this.value);
-        // ✅ إعادة تعبئة قوائم الحكام مع الأرقام الجديدة
         await populateRefereeDropdownsWithAvailability(
           null,
           document.getElementById("matchDate").value,
@@ -207,15 +192,12 @@ async function init() {
         );
       });
 
-    // ✅ إضافة مستمع لزر حفظ الاعتذار
     document
       .getElementById("saveExcuseBtn")
       .addEventListener("click", saveExcuse);
 
-    // Populate filter competition dropdown
     populateCompetitionFilter();
 
-    // ✅ تعيين القيم الافتراضية للفلاتر
     document.getElementById("filterSort").value = "oldest";
     document.getElementById("filterNotified").value = "";
     document.getElementById("filterStatus").value = "upcoming";
@@ -229,10 +211,6 @@ async function init() {
     });
   }
 }
-
-// ============================================
-// تحميل البيانات
-// ============================================
 
 // Load competitions
 async function loadCompetitions() {
@@ -319,7 +297,12 @@ async function loadMatches() {
       .order("match_date", { ascending: false });
 
     if (error) throw error;
+
     allMatches = data || [];
+
+    // ✅ تعبئة فلتر المجموعات من الملاحظات
+    populateGroupFilter();
+
     renderMatches(allMatches);
     filterMatches();
   } catch (error) {
@@ -333,10 +316,7 @@ async function loadMatches() {
   }
 }
 
-// ============================================
 // ✅ دالة لجلب عدد مباريات كل حكم في مسابقة معينة
-// ============================================
-
 async function loadRefereeMatchCounts(competitionId) {
   if (!competitionId) {
     refereeMatchCounts = {};
@@ -344,7 +324,6 @@ async function loadRefereeMatchCounts(competitionId) {
   }
 
   try {
-    // جلب جميع المباريات في المسابقة المختارة
     const { data: matches, error } = await supabase
       .from("matches")
       .select(
@@ -361,7 +340,6 @@ async function loadRefereeMatchCounts(competitionId) {
 
     if (error) throw error;
 
-    // حساب عدد المباريات لكل حكم
     const counts = {};
     matches.forEach((match) => {
       const refereeIds = [
@@ -371,7 +349,7 @@ async function loadRefereeMatchCounts(competitionId) {
         match.assistant2_referee_id,
         match.var_referee_id,
         match.avar_referee_id,
-      ].filter((id) => id); // إزالة القيم الفارغة
+      ].filter((id) => id);
 
       refereeIds.forEach((id) => {
         counts[id] = (counts[id] || 0) + 1;
@@ -385,10 +363,7 @@ async function loadRefereeMatchCounts(competitionId) {
   }
 }
 
-// ============================================
 // Populate dropdowns
-// ============================================
-
 function populateCompetitionDropdowns() {
   const select = document.getElementById("matchCompetition");
   select.innerHTML = '<option value="">اختر المسابقة</option>';
@@ -406,7 +381,6 @@ function getRefereesByRole(role, excludeRefereeId = null) {
     return true;
   });
 
-  // تصفية حسب الدور
   switch (role) {
     case "main":
       filtered = filtered.filter(
@@ -438,18 +412,16 @@ function getRefereesByRole(role, excludeRefereeId = null) {
       break;
   }
 
-  // ✅ ترتيب حسب الدرجة ثم الاسم أبجدياً
   const degreeOrder = {
     "1st": 1,
     "2nd": 2,
     "3rd": 3,
     International: 4,
     New: 5,
-    "": 6, // لو مفيش درجة
+    "": 6,
   };
 
   filtered.sort((a, b) => {
-    // أولاً: الترتيب حسب الدرجة
     const degreeA = degreeOrder[a.degree] || 6;
     const degreeB = degreeOrder[b.degree] || 6;
 
@@ -457,7 +429,6 @@ function getRefereesByRole(role, excludeRefereeId = null) {
       return degreeA - degreeB;
     }
 
-    // ثانياً: الترتيب أبجدياً حسب الاسم
     return a.full_name.localeCompare(b.full_name);
   });
 
@@ -476,16 +447,13 @@ function getRefereeDisplayText(referee) {
 
   let label = referee.full_name;
 
-  // إضافة الدرجة
   if (referee.degree) {
     label += ` (${degreeNames[referee.degree] || referee.degree})`;
   }
 
-  // ✅ إضافة عدد المباريات في المسابقة المختارة (حتى لو صفر)
   const matchCount = refereeMatchCounts[referee.id] || 0;
-  label += ` (عدد: ${matchCount} مباراة)`; // دايماً هتظهر حتى لو 0
+  label += ` (عدد: ${matchCount} مباراة)`;
 
-  // إضافة علامة موقوف
   if (referee.is_suspended) {
     label += " 🚫 موقوف";
   }
@@ -542,7 +510,6 @@ function populateRefereeDropdowns(excludeRefereeId = null) {
     avarSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
-  // ✅ تفعيل Select2 بعد التعبئة
   initSelect2();
 }
 
@@ -629,7 +596,6 @@ function populateRefereeDropdownsWithExclusions(
     avarSelect.innerHTML += `<option value="${ref.id}">${label}</option>`;
   });
 
-  // ✅ تفعيل Select2 بعد التعبئة
   initSelect2();
 }
 
@@ -685,11 +651,9 @@ function updateTeamDropdowns() {
   });
 }
 
-
 // ============================================
 // ✅ التحقق من توفر الحكم (موقوف أو تعارض - 48 ساعة)
 // ============================================
-
 async function checkRefereeAvailabilityForDropdown(
   refereeId,
   matchDate,
@@ -707,11 +671,12 @@ async function checkRefereeAvailabilityForDropdown(
 
     if (refError) throw refError;
 
-    // ✅ التحقق من الإيقاف
+    // ✅ الموقوف: ممنوع
     if (referee.is_suspended) {
       return {
         available: false,
         reason: `🚫 موقوف`,
+        type: "suspended",
         fullName: referee.full_name,
       };
     }
@@ -723,11 +688,11 @@ async function checkRefereeAvailabilityForDropdown(
       return {
         available: false,
         reason: `🚫 موقوف حتى ${new Date(referee.suspension_until).toLocaleDateString("ar-EG")}`,
+        type: "suspended",
         fullName: referee.full_name,
       };
     }
 
-    // ✅ حساب التاريخ قبل 48 ساعة وبعد 48 ساعة
     const matchDateTime = new Date(`${matchDate}T${matchTime}`);
     const dateFrom = new Date(matchDateTime.getTime() - 48 * 60 * 60 * 1000);
     const dateTo = new Date(matchDateTime.getTime() + 48 * 60 * 60 * 1000);
@@ -735,7 +700,6 @@ async function checkRefereeAvailabilityForDropdown(
     const dateFromStr = dateFrom.toISOString().split("T")[0];
     const dateToStr = dateTo.toISOString().split("T")[0];
 
-    // ✅ جلب المباريات خلال 48 ساعة قبل وبعد
     let query = supabase
       .from("matches")
       .select(
@@ -764,13 +728,15 @@ async function checkRefereeAvailabilityForDropdown(
           (matchDateTime - conflictDateTime) / (1000 * 60),
         );
 
-        // ✅ 48 ساعة = 2880 دقيقة
         if (diffMinutes < 2880) {
           const diffHours = Math.round(diffMinutes / 60);
           return {
             available: false,
             reason: `⚠️ مباراة أخرى في ${conflict.match_date} الساعة ${conflict.match_time} (الفارق ${diffHours} ساعة)`,
+            type: "conflict",
             fullName: referee.full_name,
+            conflictMatch: conflict,
+            diffMinutes: diffMinutes,
           };
         }
       }
@@ -784,7 +750,7 @@ async function checkRefereeAvailabilityForDropdown(
 }
 
 // ============================================
-// ✅ renderMatches مع تنسيق الوقت
+// ✅ renderMatches
 // ============================================
 
 function renderMatches(matches) {
@@ -794,7 +760,7 @@ function renderMatches(matches) {
   if (!matches || matches.length === 0) {
     tbody.innerHTML = `
             <tr>
-                <td colspan="9" class="text-center py-4 text-muted">
+                <td colspan="10" class="text-center py-4 text-muted">
                     <i class="fas fa-info-circle me-2"></i>لا توجد مباريات
                 </td>
             </tr>
@@ -802,7 +768,6 @@ function renderMatches(matches) {
     return;
   }
 
-  // ✅ ترتيب المباريات حسب التاريخ
   const sortedMatches = [...matches].sort((a, b) => {
     return new Date(a.match_date) - new Date(b.match_date);
   });
@@ -811,12 +776,12 @@ function renderMatches(matches) {
 
   sortedMatches.forEach((match) => {
     const matchDate = match.match_date;
+    const group = extractGroupFromNotes(match.notes);
+    const hasConflict = match.has_conflict === true;
 
-    // ✅ إضافة فاصل التاريخ مع عدد المباريات
     if (currentDate !== matchDate) {
       currentDate = matchDate;
 
-      // ✅ حساب عدد المباريات في هذا اليوم
       const matchesCount = sortedMatches.filter(
         (m) => m.match_date === matchDate,
       ).length;
@@ -826,7 +791,7 @@ function renderMatches(matches) {
       const dateRow = document.createElement("tr");
       dateRow.className = "date-divider";
       dateRow.innerHTML = `
-                <td colspan="9" class="text-center">
+                <td colspan="10" class="text-center">
                     <div class="date-divider-content">
                         <span class="date-divider-text">
                             ${new Date(matchDate).toLocaleDateString("ar-EG", {
@@ -844,8 +809,13 @@ function renderMatches(matches) {
       tbody.appendChild(dateRow);
     }
 
-    // ✅ صف المباراة
     const tr = document.createElement("tr");
+
+    // ✅ تمييز المباراة لو فيها تعارض
+    if (hasConflict) {
+      tr.className = "match-conflict-row";
+      tr.title = "⚠️ هذه المباراة فيها حكم/حكام لديهم تعارض في التوقيت";
+    }
 
     const mainRef = match.main_referee?.full_name || "-";
     const fourthRef = match.fourth_referee?.full_name || "-";
@@ -874,8 +844,13 @@ function renderMatches(matches) {
       return name.length > 10 ? name.substring(0, 8) + "…" : name;
     };
 
+    const conflictBadge = hasConflict
+      ? '<span class="badge bg-warning text-dark ms-1" title="تعارض في التوقيت">⚠️</span>'
+      : "";
+
     tr.innerHTML = `
-    <td>${match.competitions?.name || "-"}</td>
+    <td>${match.competitions?.name || "-"}${conflictBadge}</td>
+    <td>${group ? `<span class="badge bg-purple">${group}</span>` : "-"}</td>
     <td>${new Date(match.match_date).toLocaleDateString("ar-EG")}</td>
     <td>${formatTime(match.match_time)}</td>
     <td>${match.stadium}</td>
@@ -943,8 +918,8 @@ function renderMatches(matches) {
             }
         </div>
     </td>
-    <td title="${match.notes || ""}">${match.notes ? (match.notes.length > 20 ? match.notes.substring(0, 18) + "…" : match.notes) : "-"}</td>
-    <td>
+<td title="${match.notes || ""}">${match.notes ? (match.notes.length > 20 ? match.notes.substring(0, 18) + "…" : match.notes) : "-"}</td>
+      <td>
         <div class="btn-group" role="group">
             <button class="btn btn-sm btn-outline-primary view-match" data-id="${match.id}" title="عرض التفاصيل">
                 <i class="fas fa-eye"></i>
@@ -974,7 +949,6 @@ function renderMatches(matches) {
     tbody.appendChild(tr);
   });
 
-  // ✅ إضافة المستمعات
   document.querySelectorAll(".view-match").forEach((btn) => {
     btn.addEventListener("click", () => viewMatchDetails(btn.dataset.id));
   });
@@ -1000,10 +974,6 @@ function renderMatches(matches) {
     });
   });
 }
-
-// ============================================
-// ✅ باقي الدوال
-// ============================================
 
 async function toggleRefereeNotification(matchId, refereeRole) {
   try {
@@ -1153,11 +1123,19 @@ function filterMatches() {
   const status = document.getElementById("filterStatus")?.value;
   const sort = document.getElementById("filterSort")?.value || "newest";
   const notified = document.getElementById("filterNotified")?.value;
+  const group = document.getElementById("filterGroup")?.value;
 
   let filtered = [...allMatches];
 
   if (competition) {
     filtered = filtered.filter((match) => match.competition_id === competition);
+  }
+
+  if (group) {
+    filtered = filtered.filter((match) => {
+      const matchGroup = extractGroupFromNotes(match.notes);
+      return matchGroup === group;
+    });
   }
 
   if (date) {
@@ -1188,22 +1166,6 @@ function filterMatches() {
     case "oldest":
       filtered.sort((a, b) => new Date(a.match_date) - new Date(b.match_date));
       break;
-    case "date_asc":
-      filtered.sort((a, b) => {
-        if (a.match_date === b.match_date) {
-          return a.match_time.localeCompare(b.match_time);
-        }
-        return a.match_date.localeCompare(b.match_date);
-      });
-      break;
-    case "date_desc":
-      filtered.sort((a, b) => {
-        if (a.match_date === b.match_date) {
-          return b.match_time.localeCompare(a.match_time);
-        }
-        return b.match_date.localeCompare(a.match_date);
-      });
-      break;
     default:
       filtered.sort((a, b) => new Date(b.match_date) - new Date(a.match_date));
   }
@@ -1212,15 +1174,15 @@ function filterMatches() {
 }
 
 // ============================================
-// ✅ تعبئة قوائم الحكام مع التحقق من التوفر
+// ✅ تعبئة قوائم الحكام مع التحقق (تمييز فقط - بدون منع التعارض)
 // ============================================
-
 async function populateRefereeDropdownsWithAvailability(
   excludeRefereeId = null,
   matchDate = null,
   matchTime = null,
   excludeMatchId = null,
 ) {
+  // ===== الحكم الرئيسي =====
   const mainSelect = document.getElementById("mainReferee");
   const mainReferees = getRefereesByRole("main", excludeRefereeId);
   mainSelect.innerHTML = '<option value="">اختر الحكم الرئيسي</option>';
@@ -1231,14 +1193,12 @@ async function populateRefereeDropdownsWithAvailability(
     let extraClass = "";
     let extraText = "";
 
-    // ✅ التحقق من الإيقاف دائمًا
     if (ref.is_suspended) {
       disabled = true;
       extraClass = "text-danger opacity-50";
       extraText = " 🚫 موقوف";
     }
 
-    // ✅ التحقق من تعارض التوقيت (لو فيه تاريخ ووقت)
     if (matchDate && matchTime && !disabled) {
       const availability = await checkRefereeAvailabilityForDropdown(
         ref.id,
@@ -1247,9 +1207,13 @@ async function populateRefereeDropdownsWithAvailability(
         excludeMatchId,
       );
       if (!availability.available) {
-        disabled = true;
-        extraClass = "text-danger opacity-50";
-        extraText = ` ⚠️ ${availability.reason}`;
+        if (availability.type === "suspended") {
+          disabled = true;
+          extraClass = "text-danger opacity-50";
+        } else {
+          extraClass = "text-warning fw-bold";
+        }
+        extraText = ` ${availability.reason}`;
       }
     }
 
@@ -1285,9 +1249,13 @@ async function populateRefereeDropdownsWithAvailability(
         excludeMatchId,
       );
       if (!availability.available) {
-        disabled = true;
-        extraClass = "text-danger opacity-50";
-        extraText = ` ⚠️ ${availability.reason}`;
+        if (availability.type === "suspended") {
+          disabled = true;
+          extraClass = "text-danger opacity-50";
+        } else {
+          extraClass = "text-warning fw-bold";
+        }
+        extraText = ` ${availability.reason}`;
       }
     }
 
@@ -1323,9 +1291,13 @@ async function populateRefereeDropdownsWithAvailability(
         excludeMatchId,
       );
       if (!availability.available) {
-        disabled = true;
-        extraClass = "text-danger opacity-50";
-        extraText = ` ⚠️ ${availability.reason}`;
+        if (availability.type === "suspended") {
+          disabled = true;
+          extraClass = "text-danger opacity-50";
+        } else {
+          extraClass = "text-warning fw-bold";
+        }
+        extraText = ` ${availability.reason}`;
       }
     }
 
@@ -1361,9 +1333,13 @@ async function populateRefereeDropdownsWithAvailability(
         excludeMatchId,
       );
       if (!availability.available) {
-        disabled = true;
-        extraClass = "text-danger opacity-50";
-        extraText = ` ⚠️ ${availability.reason}`;
+        if (availability.type === "suspended") {
+          disabled = true;
+          extraClass = "text-danger opacity-50";
+        } else {
+          extraClass = "text-warning fw-bold";
+        }
+        extraText = ` ${availability.reason}`;
       }
     }
 
@@ -1399,9 +1375,13 @@ async function populateRefereeDropdownsWithAvailability(
         excludeMatchId,
       );
       if (!availability.available) {
-        disabled = true;
-        extraClass = "text-danger opacity-50";
-        extraText = ` ⚠️ ${availability.reason}`;
+        if (availability.type === "suspended") {
+          disabled = true;
+          extraClass = "text-danger opacity-50";
+        } else {
+          extraClass = "text-warning fw-bold";
+        }
+        extraText = ` ${availability.reason}`;
       }
     }
 
@@ -1437,9 +1417,13 @@ async function populateRefereeDropdownsWithAvailability(
         excludeMatchId,
       );
       if (!availability.available) {
-        disabled = true;
-        extraClass = "text-danger opacity-50";
-        extraText = ` ⚠️ ${availability.reason}`;
+        if (availability.type === "suspended") {
+          disabled = true;
+          extraClass = "text-danger opacity-50";
+        } else {
+          extraClass = "text-warning fw-bold";
+        }
+        extraText = ` ${availability.reason}`;
       }
     }
 
@@ -1450,7 +1434,6 @@ async function populateRefereeDropdownsWithAvailability(
         `;
   }
 
-  // ✅ تفعيل Select2 بعد التعبئة
   initSelect2();
 }
 
@@ -1466,7 +1449,6 @@ function openAddMatchModal() {
 
   updateTeamDropdowns();
 
-  // ✅ تحميل عدد مباريات الحكام (لو فيه مسابقة محددة)
   const competitionId = document.getElementById("matchCompetition").value;
   if (competitionId) {
     loadRefereeMatchCounts(competitionId).then(() => {
@@ -1501,7 +1483,6 @@ async function updateRefereeAvailability() {
   const matchId = document.getElementById("matchId").value || null;
   const competitionId = document.getElementById("matchCompetition").value;
 
-  // ✅ تحديث عدد المباريات حسب المسابقة المختارة
   if (competitionId) {
     await loadRefereeMatchCounts(competitionId);
   }
@@ -1515,7 +1496,6 @@ async function updateRefereeAvailability() {
     );
   }
 
-  // ✅ إعادة تفعيل Select2 بعد التحديث
   setTimeout(() => initSelect2(), 200);
 }
 
@@ -1544,7 +1524,6 @@ async function editMatch(id) {
     document.getElementById("homeTeam").value = data.home_team_id;
     document.getElementById("awayTeam").value = data.away_team_id;
 
-    // ✅ تحميل عدد المباريات للمسابقة المختارة
     if (data.competition_id) {
       await loadRefereeMatchCounts(data.competition_id);
     }
@@ -1567,11 +1546,9 @@ async function editMatch(id) {
     const modal = new bootstrap.Modal(document.getElementById("matchModal"));
     modal.show();
 
-    // ✅ تفعيل Select2 وتعيين القيم بعد فتح المودال
     setTimeout(() => {
       initSelect2();
 
-      // ✅ تعيين القيم في Select2 بعد التفعيل
       setSelect2Value("mainReferee", data.main_referee_id);
       setSelect2Value("fourthReferee", data.fourth_referee_id);
       setSelect2Value("assistant1", data.assistant1_referee_id);
@@ -1590,6 +1567,9 @@ async function editMatch(id) {
   }
 }
 
+// ============================================
+// ✅ saveMatch - بدون منع (تمييز فقط + تخزين حالة التعارض)
+// ============================================
 async function saveMatch() {
   try {
     const id = document.getElementById("matchId").value;
@@ -1669,6 +1649,10 @@ async function saveMatch() {
       avarRefereeId,
     ].filter((id) => id);
 
+    // ✅ احسب التعارضات (بدون منع)
+    let hasConflict = false;
+    const conflictDetails = [];
+
     for (const refId of allRefereeIds) {
       if (refId) {
         const conflictResult = await checkTimeConflict(
@@ -1679,24 +1663,50 @@ async function saveMatch() {
         );
 
         if (conflictResult.hasConflict) {
+          hasConflict = true;
           const referee = allReferees.find((r) => r.id === refId);
-          const refName = referee?.full_name || "الحكم";
-
-          Swal.fire({
-            icon: "warning",
-            title: "⚠️ تعارض في التوقيت",
-            html: `
-              <div style="text-align: right;">
-                <p><strong>${refName}</strong> لم يمر عليه 48 ساعة من آخر مباراة.</p>
-                <p>⏰ وقت المباراة: <strong>${matchData.match_time} - ${matchData.match_date}</strong></p>
-                <p>⏰ وقت المباراة الأخيرة: <strong>${conflictResult.conflictMatch.match_time} - ${conflictResult.conflictMatch.match_date}</strong></p>
-                <p style="color: red;">⚠️ يجب أن يكون الفرق 48 ساعة على الأقل بين المباراتين.</p>
-              </div>
-            `,
-            confirmButtonText: "حسناً",
+          conflictDetails.push({
+            name: referee?.full_name || "الحكم",
+            conflictMatch: conflictResult.conflictMatch,
+            diffMinutes: conflictResult.diffMinutes,
           });
-          return;
         }
+      }
+    }
+
+    // ✅ خزّن التعارض في الداتا (على المباراة اللي بتتحفظ)
+    matchData.has_conflict = hasConflict;
+    matchData.conflict_details =
+      conflictDetails.length > 0 ? JSON.stringify(conflictDetails) : null;
+
+    // ✅ تنبيه اختياري (المستخدم يقدر يكمل)
+    if (hasConflict) {
+      const conflictList = conflictDetails
+        .map(
+          (c) =>
+            `<li><strong>${c.name}</strong> - مباراة أخرى في ${c.conflictMatch?.match_date} الساعة ${c.conflictMatch?.match_time} (الفارق ${Math.round(c.diffMinutes / 60)} ساعة)</li>`,
+        )
+        .join("");
+
+      const confirmResult = await Swal.fire({
+        icon: "warning",
+        title: "⚠️ تحذير: تعارض في التوقيت",
+        html: `
+      <div style="text-align: right;">
+        <p>الحكام التاليين لديهم مباريات خلال 48 ساعة:</p>
+        <ul style="text-align: right;">${conflictList}</ul>
+        <p style="color: #ff9800;">⚠️ يمكنك المتابعة على مسؤوليتك</p>
+      </div>
+    `,
+        showCancelButton: true,
+        confirmButtonColor: "#ff9800",
+        cancelButtonColor: "#6c757d",
+        confirmButtonText: "متابعة على مسؤوليتي",
+        cancelButtonText: "إلغاء",
+      });
+
+      if (!confirmResult.isConfirmed) {
+        return;
       }
     }
 
@@ -1711,12 +1721,22 @@ async function saveMatch() {
 
     let result;
     if (mode === "add") {
-      result = await supabase.from("matches").insert([matchData]);
+      result = await supabase.from("matches").insert([matchData]).select();
     } else {
-      result = await supabase.from("matches").update(matchData).eq("id", id);
+      result = await supabase
+        .from("matches")
+        .update(matchData)
+        .eq("id", id)
+        .select();
     }
 
     if (result.error) throw result.error;
+
+    // ✅ بعد الحفظ: أعد فحص التعارضات لكل المباريات اللي كانت متعارضة
+    const savedMatchId = mode === "add" ? result.data?.[0]?.id : id;
+    if (savedMatchId) {
+      await recalculateAllConflicts();
+    }
 
     Swal.fire({
       icon: "success",
@@ -1744,6 +1764,76 @@ async function saveMatch() {
   }
 }
 
+// ============================================
+// ✅ إعادة حساب التعارضات لكل المباريات (لضمان الدقة)
+// ============================================
+async function recalculateAllConflicts() {
+  try {
+    // جلب جميع المباريات
+    const { data: matches, error } = await supabase
+      .from("matches")
+      .select(
+        "id, match_date, match_time, main_referee_id, fourth_referee_id, assistant1_referee_id, assistant2_referee_id, var_referee_id, avar_referee_id, has_conflict, conflict_details",
+      )
+      .order("match_date", { ascending: false })
+      .limit(100); // آخر 100 مباراة فقط للأداء
+
+    if (error) throw error;
+
+    for (const match of matches || []) {
+      const allRefIds = [
+        match.main_referee_id,
+        match.fourth_referee_id,
+        match.assistant1_referee_id,
+        match.assistant2_referee_id,
+        match.var_referee_id,
+        match.avar_referee_id,
+      ].filter((id) => id);
+
+      let hasConflict = false;
+      const conflictDetails = [];
+
+      for (const refId of allRefIds) {
+        const conflictResult = await checkTimeConflict(
+          refId,
+          match.match_date,
+          match.match_time,
+          match.id,
+        );
+
+        if (conflictResult.hasConflict) {
+          hasConflict = true;
+          const referee = allReferees.find((r) => r.id === refId);
+          conflictDetails.push({
+            name: referee?.full_name || "الحكم",
+            conflictMatch: conflictResult.conflictMatch,
+            diffMinutes: conflictResult.diffMinutes,
+          });
+        }
+      }
+
+      const newConflictDetails =
+        conflictDetails.length > 0 ? JSON.stringify(conflictDetails) : null;
+
+      // ✅ حدّث بس لو فيه تغيير
+      if (
+        match.has_conflict !== hasConflict ||
+        match.conflict_details !== newConflictDetails
+      ) {
+        await supabase
+          .from("matches")
+          .update({
+            has_conflict: hasConflict,
+            conflict_details: newConflictDetails,
+          })
+          .eq("id", match.id);
+      }
+    }
+  } catch (error) {
+    console.error("Error recalculating conflicts:", error);
+  }
+}
+
 async function deleteMatch(id) {
   const result = await Swal.fire({
     title: "حذف المباراة",
@@ -1762,6 +1852,9 @@ async function deleteMatch(id) {
     const { error } = await supabase.from("matches").delete().eq("id", id);
 
     if (error) throw error;
+
+    // ✅ أعد حساب التعارضات بعد الحذف
+    await recalculateAllConflicts();
 
     Swal.fire({
       icon: "success",
@@ -1978,6 +2071,9 @@ async function saveExcuse() {
       },
     ]);
 
+    // ✅ أعد حساب التعارضات بعد الاعتذار
+    await recalculateAllConflicts();
+
     Swal.fire({
       icon: "success",
       title: "تم تسجيل الاعتذار",
@@ -2034,11 +2130,39 @@ async function viewMatchDetails(id) {
 
     if (excError) throw excError;
 
+    let conflictAlert = "";
+    if (match.has_conflict && match.conflict_details) {
+      try {
+        const conflicts = JSON.parse(match.conflict_details);
+        conflictAlert = `
+          <div class="alert alert-warning mt-3">
+            <h6><i class="fas fa-exclamation-triangle me-2"></i>⚠️ تحذير: تعارض في التوقيت</h6>
+            <ul class="mb-0">
+              ${conflicts
+                .map(
+                  (c) => `
+                  <li>
+                    <strong>${c.name}</strong> - مباراة أخرى في 
+                    ${c.conflictMatch?.match_date} الساعة ${c.conflictMatch?.match_time}
+                    (الفارق ${Math.round(c.diffMinutes / 60)} ساعة)
+                  </li>
+                `,
+                )
+                .join("")}
+            </ul>
+          </div>
+        `;
+      } catch (e) {
+        console.error("Error parsing conflict details:", e);
+      }
+    }
+
     const content = document.getElementById("matchDetailsContent");
     content.innerHTML = `
             <div class="row">
                 <div class="col-md-6">
                     <h5 class="mb-3">معلومات المباراة</h5>
+                    ${conflictAlert}
                     <div class="info-grid">
                         <div><strong>المسابقة:</strong> ${match.competitions?.name || "-"}</div>
                         <div><strong>التاريخ:</strong> ${new Date(match.match_date).toLocaleDateString("ar-EG")}</div>
@@ -2227,6 +2351,91 @@ async function handleLogout() {
   if (result.isConfirmed) {
     await logout();
   }
+}
+
+// ============================================
+// ✅ استخراج المجموعة من الملاحظات (ديناميكي)
+// ============================================
+function extractGroupFromNotes(notes) {
+  if (!notes) return null;
+
+  const fixedKeywords = [
+    "كأس مصر - التمهيدي الأول",
+    "كأس مصر - التمهيدي الثاني",
+    "المجموعة الأولى أ",
+    "المجموعة الأولى ب",
+    "المجموعة الأولى",
+    "المجموعة الثانية",
+    "المجموعة الثالثة",
+    "المجموعة الرابعة",
+    "المجموعة الخامسة",
+    "المجموعة السادسة",
+    "المحترفين",
+  ];
+
+  const sortedFixed = [...fixedKeywords].sort((a, b) => b.length - a.length);
+
+  for (const keyword of sortedFixed) {
+    if (notes.includes(keyword)) {
+      return keyword;
+    }
+  }
+
+  const groupMatch = notes.match(/المجموعة\s+[^\s\-|,،]+/);
+  if (groupMatch) {
+    return groupMatch[0].trim();
+  }
+
+  const groupMatch2 = notes.match(/مجموعة\s+[^\s\-|,،]+/);
+  if (groupMatch2) {
+    return groupMatch2[0].trim();
+  }
+
+  const cupMatch = notes.match(/كأس\s+مصر\s*-\s*[^\s\-|,،]+/);
+  if (cupMatch) {
+    return cupMatch[0].trim();
+  }
+
+  return null;
+}
+
+// ============================================
+// ✅ استخراج كل المجموعات الفريدة من المباريات
+// ============================================
+function extractAllGroupsFromMatches() {
+  const groupsSet = new Set();
+
+  allMatches.forEach((match) => {
+    const group = extractGroupFromNotes(match.notes);
+    if (group) {
+      groupsSet.add(group);
+    }
+  });
+
+  allGroups = [...groupsSet].sort();
+
+  return allGroups;
+}
+
+// ============================================
+// ✅ تعبئة فلتر المجموعات
+// ============================================
+function populateGroupFilter() {
+  const select = document.getElementById("filterGroup");
+  if (!select) return;
+
+  extractAllGroupsFromMatches();
+
+  select.innerHTML = '<option value="">جميع المجموعات</option>';
+
+  if (allGroups.length === 0) {
+    select.innerHTML += '<option value="" disabled>لا توجد مجموعات</option>';
+    return;
+  }
+
+  allGroups.forEach((group) => {
+    select.innerHTML += `<option value="${group}">${group}</option>`;
+  });
 }
 
 document.addEventListener("DOMContentLoaded", init);

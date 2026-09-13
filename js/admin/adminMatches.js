@@ -447,8 +447,8 @@ function getRefereeDisplayText(referee) {
 
   let label = referee.full_name;
 
-  if (referee.degree) {
-    label += ` (${degreeNames[referee.degree] || referee.degree})`;
+  if (referee.region) {
+    label += ` (${referee.region})`;
   }
 
   const matchCount = refereeMatchCounts[referee.id] || 0;

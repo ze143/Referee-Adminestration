@@ -6,6 +6,33 @@ import Swal from "https://cdn.jsdelivr.net/npm/sweetalert2@11/+esm";
 let currentReportData = null;
 let reportCharts = [];
 
+// ✅ دالة مساعدة لتنسيق الوقت
+function formatTime(timeString) {
+  if (!timeString) return "-";
+
+  if (timeString.includes("ص") || timeString.includes("م")) {
+    return timeString;
+  }
+
+  try {
+    let parts = timeString.split(":");
+    let hours = parseInt(parts[0]);
+    let minutes = parts[1];
+
+    let ampm = hours >= 12 ? "م" : "ص";
+
+    if (hours > 12) {
+      hours = hours - 12;
+    } else if (hours === 0) {
+      hours = 12;
+    }
+
+    return `${hours}.${minutes} ${ampm}`;
+  } catch (e) {
+    return timeString;
+  }
+}
+
 // Initialize
 async function init() {
   try {
@@ -22,11 +49,9 @@ async function init() {
         day: "numeric",
       });
 
-    // ✅ إلغاء تعيين التواريخ الافتراضية (تكون فاضية)
     document.getElementById("reportDateFrom").value = "";
     document.getElementById("reportDateTo").value = "";
 
-    // Event listeners
     document
       .getElementById("logoutBtn")
       .addEventListener("click", handleLogout);
@@ -43,7 +68,18 @@ async function init() {
       .getElementById("exportReportPdf")
       .addEventListener("click", exportReportPdf);
 
-    // ✅ تحميل التقرير تلقائياً (بدون تاريخ = كل البيانات)
+    document
+      .getElementById("reportType")
+      .addEventListener("change", toggleReportFilters);
+
+    document
+      .getElementById("reportFilterRegion")
+      ?.addEventListener("change", generateReport);
+
+    document
+      .getElementById("reportFilterJob")
+      ?.addEventListener("change", generateReport);
+
     await generateReport();
   } catch (error) {
     console.error("Init error:", error);
@@ -56,8 +92,10 @@ async function generateReport() {
     const reportType = document.getElementById("reportType").value;
     const dateFrom = document.getElementById("reportDateFrom").value;
     const dateTo = document.getElementById("reportDateTo").value;
+    const regionFilter =
+      document.getElementById("reportFilterRegion")?.value || "";
+    const jobFilter = document.getElementById("reportFilterJob")?.value || "";
 
-    // Show loading
     const content = document.getElementById("reportContent");
     content.innerHTML = `
             <div class="text-center py-5">
@@ -74,7 +112,12 @@ async function generateReport() {
         reportData = await generateMatchesReport(dateFrom, dateTo);
         break;
       case "referees":
-        reportData = await generateRefereesReport(dateFrom, dateTo);
+        reportData = await generateRefereesReport(
+          dateFrom,
+          dateTo,
+          regionFilter,
+          jobFilter,
+        );
         break;
       case "competitions":
         reportData = await generateCompetitionsReport(dateFrom, dateTo);
@@ -124,7 +167,6 @@ async function generateMatchesReport(dateFrom, dateTo) {
       )
       .order("match_date", { ascending: true });
 
-    // ✅ لو فيه تاريخ من، أضف الفلترة
     if (dateFrom) {
       query = query.gte("match_date", dateFrom);
     }
@@ -136,7 +178,6 @@ async function generateMatchesReport(dateFrom, dateTo) {
 
     if (error) throw error;
 
-    // ✅ حساب جميع الإحصائيات
     const totalMatches = matchesData?.length || 0;
 
     const matchesByCompetition = {};
@@ -146,16 +187,15 @@ async function generateMatchesReport(dateFrom, dateTo) {
     let paidCount = 0;
     let upcomingCount = 0;
     let pastCount = 0;
+    let conflictCount = 0; // ✅ جديد
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     matchesData?.forEach((match) => {
-      // By competition
       const compName = match.competitions?.name || "غير محدد";
       matchesByCompetition[compName] =
         (matchesByCompetition[compName] || 0) + 1;
 
-      // By referee
       const refs = [
         match.main_referee,
         match.fourth_referee,
@@ -169,17 +209,17 @@ async function generateMatchesReport(dateFrom, dateTo) {
         }
       });
 
-      // By supervisor
       if (match.supervisor?.full_name) {
         matchesBySupervisor[match.supervisor.full_name] =
           (matchesBySupervisor[match.supervisor.full_name] || 0) + 1;
       }
 
-      // Count notified and paid
       if (match.is_notified) notifiedCount++;
       if (match.is_paid) paidCount++;
 
-      // Count upcoming and past
+      // ✅ حساب التعارضات
+      if (match.has_conflict) conflictCount++;
+
       const matchDate = new Date(match.match_date);
       matchDate.setHours(0, 0, 0, 0);
 
@@ -201,6 +241,7 @@ async function generateMatchesReport(dateFrom, dateTo) {
       paidMatches: paidCount,
       upcomingMatches: upcomingCount,
       pastMatches: pastCount,
+      conflictMatches: conflictCount, // ✅ جديد
       dateFrom: dateFrom || "الكل",
       dateTo: dateTo || "الكل",
     };
@@ -211,27 +252,38 @@ async function generateMatchesReport(dateFrom, dateTo) {
 }
 
 // ============================================
-// ✅ Generate referees report - المُعدل
+// ✅ Generate referees report - مع فلترة المنطقة والوظيفة والتعارضات
 // ============================================
-async function generateRefereesReport(dateFrom, dateTo) {
+async function generateRefereesReport(
+  dateFrom,
+  dateTo,
+  regionFilter = "",
+  jobFilter = "",
+) {
   try {
-    // 1. جلب جميع الحكام
-    const { data: refereesData, error: refError } = await supabase
-      .from("referees")
-      .select("*")
-      .order("full_name");
+    // 1. جلب جميع الحكام (مع فلترة المنطقة والوظيفة)
+    let refQuery = supabase.from("referees").select("*").order("full_name");
+
+    if (regionFilter) {
+      refQuery = refQuery.eq("region", regionFilter);
+    }
+    if (jobFilter) {
+      refQuery = refQuery.eq("job", jobFilter);
+    }
+
+    const { data: refereesData, error: refError } = await refQuery;
 
     if (refError) throw refError;
 
     // 2. جلب المباريات (مع فلترة اختيارية)
-    let query = supabase
-      .from("matches")
-      .select(
-        `
+    let query = supabase.from("matches").select(
+      `
                 id,
                 match_date,
                 is_notified,
                 is_paid,
+                has_conflict,
+                conflict_details,
                 main_referee_id,
                 fourth_referee_id,
                 assistant1_referee_id,
@@ -239,7 +291,7 @@ async function generateRefereesReport(dateFrom, dateTo) {
                 var_referee_id,
                 avar_referee_id
             `,
-      );
+    );
 
     if (dateFrom) {
       query = query.gte("match_date", dateFrom);
@@ -278,6 +330,29 @@ async function generateRefereesReport(dateFrom, dateTo) {
       });
     });
 
+    // ✅ 3.5 تجميع التعارضات لكل حكم
+    const refereeConflicts = {};
+    matchesData?.forEach((match) => {
+      if (match.has_conflict && match.conflict_details) {
+        try {
+          const conflicts = JSON.parse(match.conflict_details);
+          conflicts.forEach((c) => {
+            if (!refereeConflicts[c.name]) {
+              refereeConflicts[c.name] = [];
+            }
+            refereeConflicts[c.name].push({
+              matchId: match.id,
+              matchDate: match.match_date,
+              conflictMatch: c.conflictMatch,
+              diffMinutes: c.diffMinutes,
+            });
+          });
+        } catch (e) {
+          console.error("Error parsing conflict:", e);
+        }
+      }
+    });
+
     // 4. جلب الأعذار لكل حكم
     let excQuery = supabase
       .from("referee_excuses")
@@ -295,7 +370,6 @@ async function generateRefereesReport(dateFrom, dateTo) {
 
     if (excError) throw excError;
 
-    // 5. تجميع الأعذار لكل حكم
     const refereeExcuses = {};
     excusesData?.forEach((exc) => {
       if (!refereeExcuses[exc.referee_id]) {
@@ -304,10 +378,8 @@ async function generateRefereesReport(dateFrom, dateTo) {
       refereeExcuses[exc.referee_id].push(exc);
     });
 
-    // 6. جلب سجل الإيقافات
-    let suspQuery = supabase
-      .from("suspensions_history")
-      .select("*");
+    // 5. جلب سجل الإيقافات
+    let suspQuery = supabase.from("suspensions_history").select("*");
 
     if (dateFrom) {
       suspQuery = suspQuery.gte("start_date", dateFrom);
@@ -328,14 +400,14 @@ async function generateRefereesReport(dateFrom, dateTo) {
       refereeSuspensions[susp.referee_id].push(susp);
     });
 
-    // 7. بناء الإحصائيات لكل حكم
+    // 6. بناء الإحصائيات لكل حكم
     const refereeStats = refereesData?.map((ref) => {
       const matches = refereeMatches[ref.id]?.matches || [];
       const roles = refereeMatches[ref.id]?.roles || {};
       const excuses = refereeExcuses[ref.id] || [];
       const suspensions = refereeSuspensions[ref.id] || [];
+      const conflicts = refereeConflicts[ref.full_name] || []; // ✅ جديد
 
-      // حساب عدد المباريات حسب الدور
       const mainCount = roles.main || 0;
       const fourthCount = roles.fourth || 0;
       const assistant1Count = roles.assistant1 || 0;
@@ -343,7 +415,6 @@ async function generateRefereesReport(dateFrom, dateTo) {
       const varCount = roles.var || 0;
       const avarCount = roles.avar || 0;
 
-      // حساب المباريات المبلغ عنها والمدفوعة
       const notifiedMatches = matches.filter((m) => m.is_notified).length;
       const paidMatches = matches.filter((m) => m.is_paid).length;
 
@@ -360,6 +431,8 @@ async function generateRefereesReport(dateFrom, dateTo) {
         paidMatches: paidMatches,
         excuseCount: excuses.length,
         suspensionCount: suspensions.length,
+        conflictCount: conflicts.length, // ✅ جديد
+        conflicts: conflicts, // ✅ جديد
         isActive: !ref.is_suspended,
       };
     });
@@ -372,6 +445,8 @@ async function generateRefereesReport(dateFrom, dateTo) {
       refereeStats?.reduce((sum, r) => sum + r.matchCount, 0) || 0;
     const totalExcuses =
       refereeStats?.reduce((sum, r) => sum + r.excuseCount, 0) || 0;
+    const totalConflicts =
+      refereeStats?.reduce((sum, r) => sum + r.conflictCount, 0) || 0; // ✅ جديد
 
     return {
       type: "referees",
@@ -381,8 +456,11 @@ async function generateRefereesReport(dateFrom, dateTo) {
       suspendedReferees: suspendedReferees,
       totalMatches: totalMatches,
       totalExcuses: totalExcuses,
+      totalConflicts: totalConflicts, // ✅ جديد
       dateFrom: dateFrom || "الكل",
       dateTo: dateTo || "الكل",
+      regionFilter: regionFilter || "الكل",
+      jobFilter: jobFilter || "الكل",
     };
   } catch (error) {
     console.error("Error generating referees report:", error);
@@ -395,7 +473,6 @@ async function generateRefereesReport(dateFrom, dateTo) {
 // ============================================
 async function generateSupervisorsReport(dateFrom, dateTo) {
   try {
-    // 1. جلب جميع المراقبين
     const { data: supervisorsData, error: supError } = await supabase
       .from("supervisors")
       .select("*")
@@ -403,11 +480,8 @@ async function generateSupervisorsReport(dateFrom, dateTo) {
 
     if (supError) throw supError;
 
-    // 2. جلب المباريات (مع فلترة اختيارية)
-    let query = supabase
-      .from("matches")
-      .select(
-        `
+    let query = supabase.from("matches").select(
+      `
                 id,
                 match_date,
                 is_notified,
@@ -416,7 +490,7 @@ async function generateSupervisorsReport(dateFrom, dateTo) {
                 competition_id,
                 competitions!inner(name)
             `,
-      );
+    );
 
     if (dateFrom) {
       query = query.gte("match_date", dateFrom);
@@ -429,7 +503,6 @@ async function generateSupervisorsReport(dateFrom, dateTo) {
 
     if (matchError) throw matchError;
 
-    // 3. تجميع المباريات حسب supervisor_id
     const matchesBySupervisor = {};
     matchesData?.forEach((match) => {
       const supId = match.supervisor_id;
@@ -441,11 +514,9 @@ async function generateSupervisorsReport(dateFrom, dateTo) {
       matchesBySupervisor[supId].push(match);
     });
 
-    // 4. بناء الإحصائيات لكل مراقب
     const supervisorStats = supervisorsData?.map((sup) => {
       const matches = matchesBySupervisor[sup.id] || [];
 
-      // حساب المباريات حسب المسابقة
       const matchesByCompetition = {};
       matches.forEach((m) => {
         const compName = m.competitions?.name || "غير محدد";
@@ -510,7 +581,6 @@ async function generateCompetitionsReport(dateFrom, dateTo) {
     const compStats = compsData?.map((comp) => {
       let matches = comp.matches || [];
 
-      // ✅ فلترة المباريات حسب التاريخ (لو موجود)
       if (dateFrom) {
         matches = matches.filter((m) => m.match_date >= dateFrom);
       }
@@ -671,7 +741,6 @@ function renderReport(reportType, reportData) {
 
   content.innerHTML = html;
 
-  // Add event listeners for view buttons
   document.querySelectorAll(".view-referee-report").forEach((btn) => {
     btn.addEventListener("click", () => {
       const refereeId = btn.dataset.id;
@@ -686,7 +755,6 @@ function renderReport(reportType, reportData) {
     });
   });
 
-  // Initialize charts after rendering
   setTimeout(() => {
     initReportCharts(reportType, reportData);
   }, 100);
@@ -811,7 +879,6 @@ async function viewSupervisorDetails(id) {
 
     if (matchError) throw matchError;
 
-    // إحصائيات المباريات حسب المسابقة
     const competitions = {};
     matches?.forEach((m) => {
       const compName = m.competitions?.name || "غير محدد";
@@ -923,7 +990,7 @@ async function viewSupervisorDetails(id) {
 }
 
 // ============================================
-// ✅ Render matches report
+// ✅ Render matches report - مع تمييز التعارضات
 // ============================================
 function renderMatchesReport(data) {
   const totalMatches = data?.totalMatches || 0;
@@ -931,6 +998,7 @@ function renderMatchesReport(data) {
   const paidMatches = data?.paidMatches || 0;
   const upcomingMatches = data?.upcomingMatches || 0;
   const pastMatches = data?.pastMatches || 0;
+  const conflictMatches = data?.conflictMatches || 0;
   const unpaidedMatches = totalMatches - paidMatches;
 
   return `
@@ -961,16 +1029,22 @@ function renderMatchesReport(data) {
             </div>
         </div>
         <div class="row g-4 mb-4">
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="stat-card">
                     <div class="stat-number" style="font-size: 28px; color: #4caf50;">${upcomingMatches}</div>
                     <div class="stat-label">📅 قادمة</div>
                 </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="stat-card">
                     <div class="stat-number" style="font-size: 28px; color: #9e9e9e;">${pastMatches}</div>
                     <div class="stat-label">📅 منتهية</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card" style="${conflictMatches > 0 ? "border: 2px solid #ff9800;" : ""}">
+                    <div class="stat-number" style="font-size: 28px; color: #ff9800;">${conflictMatches}</div>
+                    <div class="stat-label">⚠️ فيها تعارض</div>
                 </div>
             </div>
         </div>
@@ -1001,11 +1075,15 @@ function renderMatchesReport(data) {
                       data.data && data.data.length > 0
                         ? data.data
                             .slice(0, 20)
-                            .map(
-                              (m) => `
-                        <tr>
-                            <td>${new Date(m.match_date).toLocaleDateString("ar-EG")}</td>
-                            <td>${m.match_time}</td>
+                            .map((m) => {
+                              const hasConflict = m.has_conflict === true;
+                              return `
+                        <tr class="${hasConflict ? "table-warning" : ""}" ${hasConflict ? 'title="⚠️ هذه المباراة فيها تعارض في التوقيت"' : ""}>
+                            <td>
+                                ${new Date(m.match_date).toLocaleDateString("ar-EG")}
+                                ${hasConflict ? '<span class="badge bg-warning text-dark ms-1">⚠️</span>' : ""}
+                            </td>
+                            <td>${formatTime(m.match_time)}</td>
                             <td>${m.competitions?.name || "-"}</td>
                             <td>${m.home_team?.name || "-"}</td>
                             <td>${m.away_team?.name || "-"}</td>
@@ -1017,8 +1095,8 @@ function renderMatchesReport(data) {
                                 </span>
                             </td>
                         </tr>
-                    `,
-                            )
+                    `;
+                            })
                             .join("")
                         : `
                         <tr>
@@ -1034,7 +1112,7 @@ function renderMatchesReport(data) {
 }
 
 // ============================================
-// ✅ Render referees report - المُعدل
+// ✅ Render referees report - مع التعارضات والفلاتر
 // ============================================
 function renderRefereesReport(data) {
   const totalReferees = data?.totalReferees || 0;
@@ -1042,8 +1120,34 @@ function renderRefereesReport(data) {
   const suspendedReferees = data?.suspendedReferees || 0;
   const totalMatches = data?.totalMatches || 0;
   const totalExcuses = data?.totalExcuses || 0;
+  const totalConflicts = data?.totalConflicts || 0;
+  const regionFilter = data?.regionFilter || "";
+  const jobFilter = data?.jobFilter || "";
+
+  const jobNames = {
+    referee: "حكم",
+    assistant: "حكم مساعد",
+    both: "حكم وحكم مساعد",
+  };
+
+  let activeFilters = "";
+  if (regionFilter && regionFilter !== "الكل") {
+    activeFilters += `<span class="badge bg-info me-1">📍 ${regionFilter}</span>`;
+  }
+  if (jobFilter && jobFilter !== "الكل") {
+    activeFilters += `<span class="badge bg-primary me-1">💼 ${jobNames[jobFilter] || jobFilter}</span>`;
+  }
 
   return `
+        ${
+          activeFilters
+            ? `
+            <div class="alert alert-light mb-3">
+                <strong>الفلاتر النشطة:</strong> ${activeFilters}
+            </div>
+        `
+            : ""
+        }
         <div class="row g-4 mb-4">
             <div class="col-md-3">
                 <div class="stat-card">
@@ -1071,10 +1175,16 @@ function renderRefereesReport(data) {
             </div>
         </div>
         <div class="row g-4 mb-4">
-            <div class="col-md-12">
+            <div class="col-md-6">
                 <div class="stat-card">
                     <div class="stat-number" style="font-size: 28px; color: #9c27b0;">${totalExcuses}</div>
                     <div class="stat-label">📝 إجمالي الأعذار</div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="stat-card" style="${totalConflicts > 0 ? "border: 2px solid #ff9800;" : ""}">
+                    <div class="stat-number" style="font-size: 28px; color: #ff9800;">${totalConflicts}</div>
+                    <div class="stat-label">⚠️ إجمالي التعارضات</div>
                 </div>
             </div>
         </div>
@@ -1083,6 +1193,8 @@ function renderRefereesReport(data) {
                 <thead>
                     <tr>
                         <th>اسم الحكم</th>
+                        <th>المنطقة</th>
+                        <th>الوظيفة</th>
                         <th>الدرجة</th>
                         <th>إجمالي المباريات</th>
                         <th>رئيسي</th>
@@ -1091,6 +1203,7 @@ function renderRefereesReport(data) {
                         <th>VAR</th>
                         <th>AVAR</th>
                         <th>أعذار</th>
+                        <th>تعارضات</th>
                         <th>الحالة</th>
                         <th>الإجراءات</th>
                     </tr>
@@ -1101,8 +1214,13 @@ function renderRefereesReport(data) {
                         ? data.data
                             .map(
                               (ref) => `
-                        <tr>
-                            <td><strong>${ref.full_name}</strong></td>
+                        <tr class="${ref.conflictCount > 0 ? "table-warning" : ""}">
+                            <td>
+                                <strong>${ref.full_name}</strong>
+                                ${ref.conflictCount > 0 ? `<span class="badge bg-warning text-dark ms-1">⚠️ ${ref.conflictCount}</span>` : ""}
+                            </td>
+                            <td>${ref.region || "-"}</td>
+                            <td>${jobNames[ref.job] || ref.job || "-"}</td>
                             <td><span class="badge bg-info">${ref.degree || "-"}</span></td>
                             <td><span class="badge bg-primary">${ref.matchCount}</span></td>
                             <td>${ref.mainCount}</td>
@@ -1111,6 +1229,13 @@ function renderRefereesReport(data) {
                             <td>${ref.varCount || 0}</td>
                             <td>${ref.avarCount || 0}</td>
                             <td>${ref.excuseCount || 0}</td>
+                            <td>
+                                ${
+                                  ref.conflictCount > 0
+                                    ? `<span class="badge bg-warning text-dark">${ref.conflictCount}</span>`
+                                    : `<span class="text-muted">0</span>`
+                                }
+                            </td>
                             <td>
                                 <span class="badge ${ref.isActive ? "bg-success" : "bg-danger"}">
                                     ${ref.isActive ? "نشط" : "موقوف"}
@@ -1127,7 +1252,7 @@ function renderRefereesReport(data) {
                             .join("")
                         : `
                         <tr>
-                            <td colspan="12" class="text-center text-muted">لا توجد بيانات</td>
+                            <td colspan="14" class="text-center text-muted">لا توجد بيانات</td>
                         </tr>
                     `
                     }
@@ -1328,7 +1453,7 @@ function renderFinanceReport(data) {
 }
 
 // ============================================
-// ✅ View referee details
+// ✅ View referee details - مع سجل التعارضات
 // ============================================
 async function viewRefereeDetails(id) {
   try {
@@ -1357,6 +1482,39 @@ async function viewRefereeDetails(id) {
 
     if (matchError) throw matchError;
 
+    // ✅ بناء سجل التعارضات
+    const conflictRecords = [];
+    matches?.forEach((match) => {
+      if (match.has_conflict && match.conflict_details) {
+        try {
+          const conflicts = JSON.parse(match.conflict_details);
+          conflicts.forEach((c) => {
+            if (c.name === referee.full_name) {
+              conflictRecords.push({
+                matchId: match.id,
+                matchDate: match.match_date,
+                matchTime: match.match_time,
+                competition: match.competitions?.name || "غير محدد",
+                homeTeam: match.home_team?.name || "-",
+                awayTeam: match.away_team?.name || "-",
+                stadium: match.stadium || "-",
+                conflictMatchDate: c.conflictMatch?.match_date,
+                conflictMatchTime: c.conflictMatch?.match_time,
+                diffMinutes: c.diffMinutes,
+                diffHours: Math.round((c.diffMinutes || 0) / 60),
+              });
+            }
+          });
+        } catch (e) {
+          console.error("Error parsing conflict:", e);
+        }
+      }
+    });
+
+    conflictRecords.sort(
+      (a, b) => new Date(b.matchDate) - new Date(a.matchDate),
+    );
+
     const { data: excuses, error: excError } = await supabase
       .from("referee_excuses")
       .select("*")
@@ -1384,7 +1542,7 @@ async function viewRefereeDetails(id) {
     const jobNames = {
       referee: "حكم",
       assistant: "حكم مساعد",
-      both: "حكم وحكم مساعد",
+      both: "حكم ومساعد",
     };
 
     const statusNames = {
@@ -1403,6 +1561,7 @@ async function viewRefereeDetails(id) {
                             <p><strong>الرقم القومي:</strong> ${referee.national_id || "-"}</p>
                             <p><strong>الدرجة:</strong> ${degreeNames[referee.degree] || referee.degree}</p>
                             <p><strong>الوظيفة:</strong> ${jobNames[referee.job] || referee.job || "-"}</p>
+                            <p><strong>المنطقة:</strong> ${referee.region || "-"}</p>
                             <p><strong>الهاتف:</strong> ${referee.phone || "-"}</p>
                             <p><strong>الحالة:</strong> ${referee.is_suspended ? "⚠️ موقوف" : "✅ نشط"}</p>
                             ${
@@ -1472,6 +1631,62 @@ async function viewRefereeDetails(id) {
                                     }
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h5>
+                                <i class="fas fa-exclamation-triangle me-2 text-warning"></i>
+                                سجل التعارضات
+                                ${
+                                  conflictRecords.length > 0
+                                    ? `<span class="badge bg-warning text-dark ms-2">${conflictRecords.length}</span>`
+                                    : ""
+                                }
+                            </h5>
+                            ${
+                              conflictRecords.length > 0
+                                ? `
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    هذا الحكم لديه <strong>${conflictRecords.length}</strong> تعارض في التوقيت خلال 48 ساعة
+                                </div>
+                                <table class="table table-sm table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>التاريخ</th>
+                                            <th>الوقت</th>
+                                            <th>المباراة</th>
+                                            <th>المسابقة</th>
+                                            <th>التعارض</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${conflictRecords
+                                          .map(
+                                            (c) => `
+                                            <tr class="table-warning">
+                                                <td>${new Date(c.matchDate).toLocaleDateString("ar-EG")}</td>
+                                                <td>${formatTime(c.matchTime)}</td>
+                                                <td>
+                                                    <strong>${c.homeTeam}</strong> × <strong>${c.awayTeam}</strong>
+                                                </td>
+                                                <td>${c.competition}</td>
+                                                <td>
+                                                    <span class="badge bg-warning text-dark">
+                                                        مباراة أخرى في ${new Date(c.conflictMatchDate).toLocaleDateString("ar-EG")} الساعة ${formatTime(c.conflictMatchTime)} (الفارق ${c.diffHours} ساعة)
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        `,
+                                          )
+                                          .join("")}
+                                    </tbody>
+                                </table>
+                            `
+                                : '<p class="text-muted">✅ لا توجد تعارضات في التوقيت</p>'
+                            }
                         </div>
                     </div>
                     <hr>
@@ -1548,7 +1763,7 @@ async function viewRefereeDetails(id) {
                     </div>
                 </div>
             `,
-      width: "900px",
+      width: "1000px",
       confirmButtonText: "إغلاق",
       confirmButtonColor: "#00c853",
     });
@@ -1685,7 +1900,7 @@ function exportReportExcel() {
       case "matches":
         excelData = data.data.map((m) => ({
           التاريخ: new Date(m.match_date).toLocaleDateString("ar-EG"),
-          الوقت: m.match_time,
+          الوقت: formatTime(m.match_time),
           المسابقة: m.competitions?.name || "-",
           المضيف: m.home_team?.name || "-",
           الضيف: m.away_team?.name || "-",
@@ -1697,15 +1912,18 @@ function exportReportExcel() {
           الملعب: m.stadium,
           "مبلغ عنه": m.is_notified ? "نعم" : "لا",
           مدفوع: m.is_paid ? "نعم" : "لا",
+          "يوجد تعارض": m.has_conflict ? "نعم ⚠️" : "لا",
         }));
         break;
       case "referees":
         excelData = data.data.map((r) => ({
           "اسم الحكم": r.full_name,
-          الدرجة: r.degree,
+          المنطقة: r.region || "-",
           الوظيفة: r.job || "-",
+          الدرجة: r.degree,
           "عدد المباريات": r.matchCount,
           "عدد الأعذار": r.excuseCount,
+          "عدد التعارضات": r.conflictCount || 0,
           الحالة: r.isActive ? "نشط" : "موقوف",
         }));
         break;
@@ -1810,6 +2028,23 @@ function exportReportPdf() {
       text: "حدث خطأ في تصدير التقرير",
       confirmButtonText: "حسناً",
     });
+  }
+}
+
+// ✅ إظهار/إخفاء فلاتر الحكام حسب نوع التقرير
+function toggleReportFilters() {
+  const reportType = document.getElementById("reportType").value;
+  const regionContainer = document.getElementById("regionFilterContainer");
+  const jobContainer = document.getElementById("jobFilterContainer");
+
+  if (reportType === "referees") {
+    regionContainer.style.display = "block";
+    jobContainer.style.display = "block";
+  } else {
+    regionContainer.style.display = "none";
+    jobContainer.style.display = "none";
+    document.getElementById("reportFilterRegion").value = "";
+    document.getElementById("reportFilterJob").value = "";
   }
 }
 

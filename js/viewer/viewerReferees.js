@@ -250,7 +250,7 @@ async function viewRefereeDetails(id) {
     const jobNames = {
       referee: "حكم",
       assistant: "حكم مساعد",
-      both: "حكم وحكم مساعد",
+      both: "حكم ومساعد",
     };
 
     const statusNames = {

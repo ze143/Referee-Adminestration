@@ -75,7 +75,8 @@ async function loadReferees() {
     // ✅ احسب التعارضات لكل حكم
     const { data: matchesWithConflicts } = await supabase
       .from("matches")
-      .select(`
+      .select(
+        `
         id, 
         conflict_details, 
         match_date,
@@ -84,7 +85,8 @@ async function loadReferees() {
         competitions!inner(name),
         home_team:teams!matches_home_team_id_fkey(name),
         away_team:teams!matches_away_team_id_fkey(name)
-      `)
+      `,
+      )
       .eq("has_conflict", true);
 
     // ✅ ابنِ map للتعارضات
@@ -187,7 +189,7 @@ function renderReferees(referees) {
     const jobNames = {
       referee: "حكم",
       assistant: "حكم مساعد",
-      both: "حكم وحكم مساعد",
+      both: "حكم ومساعد",
     };
 
     let age = "-";
@@ -785,7 +787,7 @@ async function viewRefereeDetails(id) {
     const jobNames = {
       referee: "حكم",
       assistant: "حكم مساعد",
-      both: "حكم وحكم مساعد",
+      both: "حكم ومساعد",
     };
 
     const statusNames = {

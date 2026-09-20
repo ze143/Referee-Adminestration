@@ -237,7 +237,32 @@ async function loadReferees() {
       .order("full_name");
 
     if (error) throw error;
-    allReferees = data || [];
+
+    // ✅ منع التكرار بالـ ID
+    const seenIds = new Set();
+    allReferees = (data || []).filter((ref) => {
+      if (seenIds.has(ref.id)) {
+        console.warn("⚠️ Referee duplicated in DB:", ref.full_name, ref.id);
+        return false;
+      }
+      seenIds.add(ref.id);
+      return true;
+    });
+
+    // ✅ تحذير لو فيه أسماء مكررة (IDs مختلفة)
+    const nameMap = {};
+    allReferees.forEach((ref) => {
+      if (!nameMap[ref.full_name]) {
+        nameMap[ref.full_name] = [];
+      }
+      nameMap[ref.full_name].push(ref.id);
+    });
+
+    Object.entries(nameMap).forEach(([name, ids]) => {
+      if (ids.length > 1) {
+        console.warn(`⚠️ اسم مكرر في الداتا: "${name}" (${ids.length} سجل)`);
+      }
+    });
   } catch (error) {
     console.error("Error loading referees:", error);
   }
@@ -372,46 +397,50 @@ function populateCompetitionDropdowns() {
   });
 }
 
-// ✅ دالة getRefereesByRole مع ترتيب حسب الدرجة ثم الاسم
+// ✅ دالة getRefereesByRole مع منع التكرار
 function getRefereesByRole(role, excludeRefereeId = null) {
+  // ✅ فلتر حسب الدور - استخدام Set لمنع التكرار
   let filtered = allReferees.filter((ref) => {
     if (excludeRefereeId && ref.id === excludeRefereeId) {
       return false;
     }
+
+    switch (role) {
+      case "main":
+        return (
+          ref.job === "referee" || ref.job === "both" || ref.degree === "New"
+        );
+      case "assistant":
+        return (
+          ref.job === "assistant" || ref.job === "both" || ref.degree === "New"
+        );
+      case "var":
+        return (
+          ref.has_var_license === true &&
+          (ref.job === "referee" || ref.job === "both" || ref.degree === "New")
+        );
+      case "avar":
+        return (
+          ref.has_avar_license === true &&
+          (ref.job === "referee" || ref.job === "both" || ref.degree === "New")
+        );
+      default:
+        return true;
+    }
+  });
+
+  // ✅ منع التكرار (لو فيه حكام مكررين بنفس ID)
+  const seenIds = new Set();
+  filtered = filtered.filter((ref) => {
+    if (seenIds.has(ref.id)) {
+      console.warn("⚠️ Referee duplicated in dropdown:", ref.full_name, ref.id);
+      return false;
+    }
+    seenIds.add(ref.id);
     return true;
   });
 
-  switch (role) {
-    case "main":
-      filtered = filtered.filter(
-        (ref) =>
-          ref.job === "referee" || ref.job === "both" || ref.degree === "New",
-      );
-      break;
-    case "assistant":
-      filtered = filtered.filter(
-        (ref) =>
-          ref.job === "assistant" || ref.job === "both" || ref.degree === "New",
-      );
-      break;
-    case "var":
-      filtered = filtered.filter(
-        (ref) =>
-          ref.has_var_license === true &&
-          (ref.job === "referee" || ref.job === "both" || ref.degree === "New"),
-      );
-      break;
-    case "avar":
-      filtered = filtered.filter(
-        (ref) =>
-          ref.has_avar_license === true &&
-          (ref.job === "referee" || ref.job === "both" || ref.degree === "New"),
-      );
-      break;
-    default:
-      break;
-  }
-
+  // ✅ ترتيب حسب الدرجة ثم الاسم
   const degreeOrder = {
     "1st": 1,
     "2nd": 2,
@@ -435,16 +464,8 @@ function getRefereesByRole(role, excludeRefereeId = null) {
   return filtered;
 }
 
-// ✅ دالة لعرض اسم الحكم مع درجته وعدد المباريات
+// ✅ دالة لعرض اسم الحكم مع منطقته وعدد المباريات
 function getRefereeDisplayText(referee) {
-  const degreeNames = {
-    "1st": "درجة أولى",
-    "2nd": "درجة ثانية",
-    "3rd": "درجة ثالثة",
-    International: "دولي",
-    New: "جدد",
-  };
-
   let label = referee.full_name;
 
   if (referee.region) {
@@ -671,7 +692,6 @@ async function checkRefereeAvailabilityForDropdown(
 
     if (refError) throw refError;
 
-    // ✅ الموقوف: ممنوع
     if (referee.is_suspended) {
       return {
         available: false,
@@ -750,9 +770,121 @@ async function checkRefereeAvailabilityForDropdown(
 }
 
 // ============================================
+// ✅ إعادة حساب التعارضات لمباراة واحدة فقط
+// ============================================
+async function recalculateConflictsForMatch(matchId) {
+  try {
+    const { data: match, error } = await supabase
+      .from("matches")
+      .select(
+        "id, match_date, match_time, main_referee_id, fourth_referee_id, assistant1_referee_id, assistant2_referee_id, var_referee_id, avar_referee_id, has_conflict, conflict_details",
+      )
+      .eq("id", matchId)
+      .single();
+
+    if (error) throw error;
+    if (!match) return;
+
+    const allRefIds = [
+      match.main_referee_id,
+      match.fourth_referee_id,
+      match.assistant1_referee_id,
+      match.assistant2_referee_id,
+      match.var_referee_id,
+      match.avar_referee_id,
+    ].filter((id) => id);
+
+    let hasConflict = false;
+    const conflictDetails = [];
+
+    for (const refId of allRefIds) {
+      const conflictResult = await checkTimeConflict(
+        refId,
+        match.match_date,
+        match.match_time,
+        match.id,
+      );
+
+      if (conflictResult.hasConflict) {
+        hasConflict = true;
+        const referee = allReferees.find((r) => r.id === refId);
+        conflictDetails.push({
+          name: referee?.full_name || "الحكم",
+          conflictMatch: conflictResult.conflictMatch,
+          diffMinutes: conflictResult.diffMinutes,
+        });
+      }
+    }
+
+    const newConflictDetails =
+      conflictDetails.length > 0 ? JSON.stringify(conflictDetails) : null;
+
+    if (
+      match.has_conflict !== hasConflict ||
+      match.conflict_details !== newConflictDetails
+    ) {
+      await supabase
+        .from("matches")
+        .update({
+          has_conflict: hasConflict,
+          conflict_details: newConflictDetails,
+        })
+        .eq("id", matchId);
+    }
+  } catch (error) {
+    console.error("Error recalculating conflicts for match:", error);
+  }
+}
+
+// ============================================
+// ✅ إعادة حساب التعارضات لمجموعة مباريات قريبة
+// ============================================
+async function recalculateNearbyConflicts(
+  matchDate,
+  matchTime,
+  refIds,
+  excludeMatchId = null,
+) {
+  try {
+    const matchDateTime = new Date(`${matchDate}T${matchTime}`);
+    const dateFrom = new Date(matchDateTime.getTime() - 48 * 60 * 60 * 1000);
+    const dateTo = new Date(matchDateTime.getTime() + 48 * 60 * 60 * 1000);
+
+    const dateFromStr = dateFrom.toISOString().split("T")[0];
+    const dateToStr = dateTo.toISOString().split("T")[0];
+
+    if (!refIds || refIds.length === 0) return;
+
+    const orCondition = refIds
+      .map(
+        (refId) =>
+          `main_referee_id.eq.${refId},fourth_referee_id.eq.${refId},assistant1_referee_id.eq.${refId},assistant2_referee_id.eq.${refId},var_referee_id.eq.${refId},avar_referee_id.eq.${refId}`,
+      )
+      .join(",");
+
+    const { data: nearbyMatches, error } = await supabase
+      .from("matches")
+      .select("id")
+      .gte("match_date", dateFromStr)
+      .lte("match_date", dateToStr)
+      .or(orCondition);
+
+    if (error) throw error;
+
+    if (nearbyMatches && nearbyMatches.length > 0) {
+      for (const nearbyMatch of nearbyMatches) {
+        if (excludeMatchId && nearbyMatch.id === excludeMatchId) continue;
+        await recalculateConflictsForMatch(nearbyMatch.id);
+      }
+    }
+  } catch (error) {
+    console.error("Error recalculating nearby conflicts:", error);
+  }
+}
+
+// ============================================
 // ✅ renderMatches
 // ============================================
-
 function renderMatches(matches) {
   const tbody = document.getElementById("matchesBody");
   tbody.innerHTML = "";
@@ -811,7 +943,6 @@ function renderMatches(matches) {
 
     const tr = document.createElement("tr");
 
-    // ✅ تمييز المباراة لو فيها تعارض
     if (hasConflict) {
       tr.className = "match-conflict-row";
       tr.title = "⚠️ هذه المباراة فيها حكم/حكام لديهم تعارض في التوقيت";
@@ -1182,7 +1313,6 @@ async function populateRefereeDropdownsWithAvailability(
   matchTime = null,
   excludeMatchId = null,
 ) {
-  // ===== الحكم الرئيسي =====
   const mainSelect = document.getElementById("mainReferee");
   const mainReferees = getRefereesByRole("main", excludeRefereeId);
   mainSelect.innerHTML = '<option value="">اختر الحكم الرئيسي</option>';
@@ -1224,7 +1354,6 @@ async function populateRefereeDropdownsWithAvailability(
         `;
   }
 
-  // ===== الحكم الرابع =====
   const fourthSelect = document.getElementById("fourthReferee");
   const fourthReferees = getRefereesByRole("main", excludeRefereeId);
   fourthSelect.innerHTML = '<option value="">اختر الحكم الرابع</option>';
@@ -1266,7 +1395,6 @@ async function populateRefereeDropdownsWithAvailability(
         `;
   }
 
-  // ===== مساعد أول =====
   const assistant1Select = document.getElementById("assistant1");
   const assistantReferees = getRefereesByRole("assistant", excludeRefereeId);
   assistant1Select.innerHTML = '<option value="">اختر مساعد أول</option>';
@@ -1308,7 +1436,6 @@ async function populateRefereeDropdownsWithAvailability(
         `;
   }
 
-  // ===== مساعد ثاني =====
   const assistant2Select = document.getElementById("assistant2");
   const assistantReferees2 = getRefereesByRole("assistant", excludeRefereeId);
   assistant2Select.innerHTML = '<option value="">اختر مساعد ثاني</option>';
@@ -1350,7 +1477,6 @@ async function populateRefereeDropdownsWithAvailability(
         `;
   }
 
-  // ===== حكم VAR =====
   const varSelect = document.getElementById("varReferee");
   const varReferees = getRefereesByRole("var", excludeRefereeId);
   varSelect.innerHTML = '<option value="">اختر حكم VAR</option>';
@@ -1392,7 +1518,6 @@ async function populateRefereeDropdownsWithAvailability(
         `;
   }
 
-  // ===== حكم AVAR =====
   const avarSelect = document.getElementById("avarReferee");
   const avarReferees = getRefereesByRole("avar", excludeRefereeId);
   avarSelect.innerHTML = '<option value="">اختر حكم AVAR</option>';
@@ -1674,12 +1799,10 @@ async function saveMatch() {
       }
     }
 
-    // ✅ خزّن التعارض في الداتا (على المباراة اللي بتتحفظ)
     matchData.has_conflict = hasConflict;
     matchData.conflict_details =
       conflictDetails.length > 0 ? JSON.stringify(conflictDetails) : null;
 
-    // ✅ تنبيه اختياري (المستخدم يقدر يكمل)
     if (hasConflict) {
       const conflictList = conflictDetails
         .map(
@@ -1732,10 +1855,16 @@ async function saveMatch() {
 
     if (result.error) throw result.error;
 
-    // ✅ بعد الحفظ: أعد فحص التعارضات لكل المباريات اللي كانت متعارضة
+    // ✅ بعد الحفظ: أعد فحص التعارضات للمباريات القريبة فقط
     const savedMatchId = mode === "add" ? result.data?.[0]?.id : id;
     if (savedMatchId) {
-      await recalculateAllConflicts();
+      await recalculateConflictsForMatch(savedMatchId);
+      await recalculateNearbyConflicts(
+        matchData.match_date,
+        matchData.match_time,
+        allRefereeIds,
+        savedMatchId,
+      );
     }
 
     Swal.fire({
@@ -1765,75 +1894,8 @@ async function saveMatch() {
 }
 
 // ============================================
-// ✅ إعادة حساب التعارضات لكل المباريات (لضمان الدقة)
+// ✅ deleteMatch - مع إعادة حساب التعارضات للمباريات القريبة
 // ============================================
-async function recalculateAllConflicts() {
-  try {
-    // جلب جميع المباريات
-    const { data: matches, error } = await supabase
-      .from("matches")
-      .select(
-        "id, match_date, match_time, main_referee_id, fourth_referee_id, assistant1_referee_id, assistant2_referee_id, var_referee_id, avar_referee_id, has_conflict, conflict_details",
-      )
-      .order("match_date", { ascending: false })
-      .limit(100); // آخر 100 مباراة فقط للأداء
-
-    if (error) throw error;
-
-    for (const match of matches || []) {
-      const allRefIds = [
-        match.main_referee_id,
-        match.fourth_referee_id,
-        match.assistant1_referee_id,
-        match.assistant2_referee_id,
-        match.var_referee_id,
-        match.avar_referee_id,
-      ].filter((id) => id);
-
-      let hasConflict = false;
-      const conflictDetails = [];
-
-      for (const refId of allRefIds) {
-        const conflictResult = await checkTimeConflict(
-          refId,
-          match.match_date,
-          match.match_time,
-          match.id,
-        );
-
-        if (conflictResult.hasConflict) {
-          hasConflict = true;
-          const referee = allReferees.find((r) => r.id === refId);
-          conflictDetails.push({
-            name: referee?.full_name || "الحكم",
-            conflictMatch: conflictResult.conflictMatch,
-            diffMinutes: conflictResult.diffMinutes,
-          });
-        }
-      }
-
-      const newConflictDetails =
-        conflictDetails.length > 0 ? JSON.stringify(conflictDetails) : null;
-
-      // ✅ حدّث بس لو فيه تغيير
-      if (
-        match.has_conflict !== hasConflict ||
-        match.conflict_details !== newConflictDetails
-      ) {
-        await supabase
-          .from("matches")
-          .update({
-            has_conflict: hasConflict,
-            conflict_details: newConflictDetails,
-          })
-          .eq("id", match.id);
-      }
-    }
-  } catch (error) {
-    console.error("Error recalculating conflicts:", error);
-  }
-}
-
 async function deleteMatch(id) {
   const result = await Swal.fire({
     title: "حذف المباراة",
@@ -1849,12 +1911,38 @@ async function deleteMatch(id) {
   if (!result.isConfirmed) return;
 
   try {
-    const { error } = await supabase.from("matches").delete().eq("id", id);
+    // ✅ جيب المباراة قبل الحذف
+    const { data: matchToDelete, error: fetchError } = await supabase
+      .from("matches")
+      .select(
+        "id, match_date, match_time, main_referee_id, fourth_referee_id, assistant1_referee_id, assistant2_referee_id, var_referee_id, avar_referee_id",
+      )
+      .eq("id", id)
+      .single();
 
+    if (fetchError) throw fetchError;
+
+    // ✅ احذف المباراة
+    const { error } = await supabase.from("matches").delete().eq("id", id);
     if (error) throw error;
 
-    // ✅ أعد حساب التعارضات بعد الحذف
-    await recalculateAllConflicts();
+    // ✅ اعيد حساب التعارضات للمباريات القريبة
+    if (matchToDelete) {
+      const allRefIds = [
+        matchToDelete.main_referee_id,
+        matchToDelete.fourth_referee_id,
+        matchToDelete.assistant1_referee_id,
+        matchToDelete.assistant2_referee_id,
+        matchToDelete.var_referee_id,
+        matchToDelete.avar_referee_id,
+      ].filter((refId) => refId);
+
+      await recalculateNearbyConflicts(
+        matchToDelete.match_date,
+        matchToDelete.match_time,
+        allRefIds,
+      );
+    }
 
     Swal.fire({
       icon: "success",
@@ -2071,8 +2159,23 @@ async function saveExcuse() {
       },
     ]);
 
-    // ✅ أعد حساب التعارضات بعد الاعتذار
-    await recalculateAllConflicts();
+    // ✅ أعد حساب التعارضات للمباريات القريبة
+    const allRefIdsAfterExcuse = [
+      match.main_referee_id,
+      match.fourth_referee_id,
+      match.assistant1_referee_id,
+      match.assistant2_referee_id,
+      match.var_referee_id,
+      match.avar_referee_id,
+    ].filter((refId) => refId);
+
+    await recalculateConflictsForMatch(matchId);
+    await recalculateNearbyConflicts(
+      match.match_date,
+      match.match_time,
+      allRefIdsAfterExcuse,
+      matchId,
+    );
 
     Swal.fire({
       icon: "success",

@@ -652,6 +652,37 @@ async function viewRefereeDetails(id) {
       .single();
 
     if (error) throw error;
+    // ✅ جلب التقييمات
+    const { data: evaluations, error: evalError } = await supabase
+      .from("match_evaluations")
+      .select(
+        `
+      *,
+      matches!inner(
+        id,
+        match_date,
+        match_time,
+        home_team:teams!matches_home_team_id_fkey(name),
+        away_team:teams!matches_away_team_id_fkey(name),
+        competitions!inner(name)
+      )
+    `,
+      )
+      .eq("referee_id", id)
+      .order("created_at", { ascending: false });
+
+    if (evalError) {
+      console.error("Error loading evaluations:", evalError);
+    }
+
+    const evaluationsList = evaluations || [];
+
+    // ✅ حساب المتوسط
+    let averageRating = "-";
+    if (evaluationsList.length > 0) {
+      const sum = evaluationsList.reduce((acc, e) => acc + e.rating, 0);
+      averageRating = (sum / evaluationsList.length).toFixed(1);
+    }
 
     // 2. جلب جميع مباريات الحكم (جميع الأدوار)
     const { data: matches, error: matchError } = await supabase
@@ -761,6 +792,108 @@ async function viewRefereeDetails(id) {
       }
       matchesByCompetition[compName].push(match);
     });
+
+    // ✅ قسم التقييمات
+    let evaluationsSection = `
+  <h5 class="mb-3 mt-4">
+    <i class="fas fa-star me-2 text-warning"></i>
+    التقييمات
+    ${evaluationsList.length > 0 ? `<span class="badge bg-warning text-dark ms-2">${evaluationsList.length}</span>` : ""}
+  </h5>
+`;
+
+    if (evaluationsList.length > 0) {
+      evaluationsSection += `
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <div class="stat-card" style="border: 2px solid #ffc107;">
+          <div class="stat-number" style="font-size: 32px; color: #ffc107;">
+            ${averageRating}
+          </div>
+          <div class="stat-label">⭐ متوسط التقييم (من 100)</div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="stat-card">
+          <div class="stat-number" style="font-size: 32px; color: #2196f3;">
+            ${evaluationsList.length}
+          </div>
+          <div class="stat-label">📊 عدد التقييمات</div>
+        </div>
+      </div>
+    </div>
+
+    <h6 class="mb-2">آخر 5 تقييمات:</h6>
+    <div class="table-responsive mb-4">
+      <table class="table table-sm table-hover">
+        <thead>
+          <tr>
+            <th>المباراة</th>
+            <th>المسابقة</th>
+            <th>التاريخ</th>
+            <th>الدور</th>
+            <th>التقييم</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${evaluationsList
+            .slice(0, 5)
+            .map(
+              (e) => `
+              <tr>
+                <td>
+                  ${e.matches?.home_team?.name || "-"} ×
+                  ${e.matches?.away_team?.name || "-"}
+                </td>
+                <td>${e.matches?.competitions?.name || "-"}</td>
+                <td>${new Date(e.matches?.match_date).toLocaleDateString("ar-EG")}</td>
+                <td>
+                  <span class="badge ${
+                    e.referee_role === "main"
+                      ? "bg-primary"
+                      : e.referee_role === "fourth"
+                        ? "bg-warning text-dark"
+                        : e.referee_role === "var" || e.referee_role === "avar"
+                          ? "bg-danger"
+                          : "bg-success"
+                  }">
+                    ${
+                      e.referee_role === "main"
+                        ? "رئيسي"
+                        : e.referee_role === "assistant1"
+                          ? "مساعد 1"
+                          : e.referee_role === "assistant2"
+                            ? "مساعد 2"
+                            : e.referee_role === "fourth"
+                              ? "رابع"
+                              : e.referee_role === "var"
+                                ? "VAR"
+                                : "AVAR"
+                    }
+                  </span>
+                </td>
+                <td>
+                  <strong style="color: #ffc107; font-size: 1.1rem;">${e.rating}</strong>
+                  <small class="text-muted">/ 100</small>
+                </td>
+              </tr>
+            `,
+            )
+            .join("")}
+        </tbody>
+      </table>
+      ${
+        evaluationsList.length > 5
+          ? `<p class="text-muted text-center">عرض أول 5 من أصل ${evaluationsList.length}</p>`
+          : ""
+      }
+    </div>
+  `;
+    } else {
+      evaluationsSection += `
+    <p class="text-muted">لا توجد تقييمات لهذا الحكم بعد</p>
+  `;
+    }
 
     // 8. حساب العمر
     let age = "-";
@@ -903,6 +1036,7 @@ async function viewRefereeDetails(id) {
                             </div>
                         </div>
                     </div>
+                     ${evaluationsSection}
 
                     <!-- المباريات حسب المسابقة -->
                     ${

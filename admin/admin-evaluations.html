@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>تقييمات الحكام - لجنة الحكام الرئيسية</title>
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link href="../assets/css/custom-sports-theme.css" rel="stylesheet" />
+
+    <style>
+      /* ✅ كارت المباراة */
+      .match-eval-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 15px 20px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        border-right: 4px solid #00c853;
+        transition: all 0.2s;
+      }
+
+      .match-eval-card:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        transform: translateY(-2px);
+      }
+
+      .match-eval-card.evaluated {
+        border-right-color: #ffc107;
+        background: #fffef7;
+      }
+
+      .match-eval-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .match-eval-teams {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #2c3e50;
+      }
+
+      .match-eval-info {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-top: 5px;
+      }
+
+      .match-eval-info i {
+        color: #00c853;
+        width: 16px;
+      }
+
+      .match-eval-referees {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .match-eval-referees .badge {
+        font-size: 0.7rem;
+        padding: 4px 8px;
+      }
+
+      .match-eval-rating {
+        text-align: center;
+        min-width: 100px;
+      }
+
+      .match-eval-rating .rating-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #ff9800;
+        line-height: 1;
+      }
+
+      .match-eval-rating .rating-label {
+        font-size: 0.7rem;
+        color: #6c757d;
+      }
+
+      /* ✅ مودال التقييم */
+      .referee-eval-row {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 12px 15px;
+        margin-bottom: 10px;
+        border-right: 4px solid #ddd;
+      }
+
+      .referee-eval-row.role-main {
+        border-right-color: #0d6efd;
+      }
+      .referee-eval-row.role-assistant {
+        border-right-color: #198754;
+      }
+      .referee-eval-row.role-fourth {
+        border-right-color: #ffc107;
+      }
+      .referee-eval-row.role-var {
+        border-right-color: #dc3545;
+      }
+
+      .referee-eval-row .referee-name {
+        font-weight: 700;
+        color: #2c3e50;
+        font-size: 0.95rem;
+      }
+
+      .referee-eval-row .referee-role-badge {
+        font-size: 0.7rem;
+        padding: 2px 8px;
+        border-radius: 10px;
+        margin-right: 5px;
+      }
+
+      .rating-input-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 8px;
+      }
+
+      .rating-input-group input[type="number"] {
+        max-width: 120px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        text-align: center;
+      }
+
+      .rating-input-group .rating-out-of {
+        font-size: 0.9rem;
+        color: #6c757d;
+      }
+
+      /* ✅ فلتر غير مُقيَّم */
+      .filter-tabs {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 15px;
+      }
+
+      .filter-tabs .btn {
+        font-size: 0.85rem;
+        border-radius: 20px;
+        padding: 5px 15px;
+      }
+
+      .filter-tabs .btn.active {
+        background: #00c853;
+        color: #fff;
+        border-color: #00c853;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 50px 20px;
+        color: #6c757d;
+      }
+
+      .empty-state i {
+        font-size: 3rem;
+        color: #dee2e6;
+        margin-bottom: 15px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Sidebar -->
+    <div class="sidebar-wrapper">
+      <div class="sidebar">
+        <div class="sidebar-brand">
+          <i class="fas fa-futbol"></i>
+          <span>لجنة الحكام</span>
+        </div>
+        <div class="sidebar-user">
+          <div class="avatar">
+            <i class="fas fa-user-shield"></i>
+          </div>
+          <div class="user-info">
+            <span class="user-name" id="adminName">أدمن</span>
+            <span class="user-role">مدير النظام</span>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="admin-dashboard.html" class="nav-item">
+            <i class="fas fa-chart-pie"></i>
+            <span>لوحة التحكم</span>
+          </a>
+          <a href="admin-supervisors.html" class="nav-item">
+            <i class="fa fa-eye"></i>
+            <span>إدارة المراقبين</span>
+          </a>
+          <a href="admin-referees.html" class="nav-item">
+            <i class="fa fa-flag-checkered"></i>
+            <span>إدارة الحكام</span>
+          </a>
+          <a href="admin-matches.html" class="nav-item">
+            <i class="fas fa-calendar-check"></i>
+            <span>المباريات والتعيينات</span>
+          </a>
+          <a href="admin-evaluations.html" class="nav-item active">
+            <i class="fas fa-star"></i>
+            <span>تقييمات الحكام</span>
+          </a>
+          <a href="admin-competitions.html" class="nav-item">
+            <i class="fas fa-trophy"></i>
+            <span>المسابقات والفرق</span>
+          </a>
+          <a href="admin-finance.html" class="nav-item">
+            <i class="fas fa-coins"></i>
+            <span>المالية</span>
+          </a>
+          <a href="admin-reports.html" class="nav-item">
+            <i class="fas fa-file-alt"></i>
+            <span>التقارير</span>
+          </a>
+          <a href="admin-users.html" class="nav-item">
+            <i class="fas fa-users-cog"></i>
+            <span>إدارة المستخدمين</span>
+          </a>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="logoutBtn" class="btn btn-danger w-100">
+            <i class="fas fa-sign-out-alt me-2"></i>تسجيل الخروج
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <nav class="top-navbar">
+        <div class="container-fluid">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <button
+                class="sidebar-toggle btn btn-link d-lg-none"
+                id="sidebarToggle"
+              >
+                <i class="fas fa-bars"></i>
+              </button>
+              <h4 class="page-title mb-0">
+                <i class="fas fa-star me-2" style="color: #ffc107"></i>
+                تقييمات الحكام
+              </h4>
+            </div>
+            <div class="top-nav-right">
+              <div class="date-display" id="currentDate"></div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div class="content-wrapper">
+        <!-- Stats -->
+        <div class="row g-3 mb-4">
+          <div class="col-md-3">
+            <div class="stat-card">
+              <div
+                class="stat-number"
+                style="font-size: 28px; color: #00c853"
+                id="totalFinishedMatches"
+              >
+                0
+              </div>
+              <div class="stat-label">📊 مباريات منتهية</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card">
+              <div
+                class="stat-number"
+                style="font-size: 28px; color: #ffc107"
+                id="totalEvaluatedMatches"
+              >
+                0
+              </div>
+              <div class="stat-label">⭐ مباريات مُقيَّمة</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card">
+              <div
+                class="stat-number"
+                style="font-size: 28px; color: #dc3545"
+                id="totalPendingMatches"
+              >
+                0
+              </div>
+              <div class="stat-label">⏳ في انتظار التقييم</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card">
+              <div
+                class="stat-number"
+                style="font-size: 28px; color: #2196f3"
+                id="overallAverageRating"
+              >
+                -
+              </div>
+              <div class="stat-label">📈 متوسط التقييم العام</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="glass-card mb-4">
+          <div class="card-body">
+            <div class="row g-3 align-items-end">
+              <div class="col-md-3">
+                <label class="form-label">المسابقة</label>
+                <select class="form-select" id="filterCompetition">
+                  <option value="">جميع المسابقات</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">من تاريخ</label>
+                <input type="date" class="form-control" id="filterDateFrom" />
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">إلى تاريخ</label>
+                <input type="date" class="form-control" id="filterDateTo" />
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">بحث</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="filterSearch"
+                  placeholder="ابحث باسم فريق أو حكم..."
+                />
+              </div>
+            </div>
+
+            <div class="filter-tabs mt-3">
+              <button class="btn btn-outline-secondary active" data-filter="all">
+                الكل
+              </button>
+              <button class="btn btn-outline-secondary" data-filter="evaluated">
+                ⭐ مُقيَّمة
+              </button>
+              <button class="btn btn-outline-secondary" data-filter="pending">
+                ⏳ في انتظار التقييم
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Matches List -->
+        <div id="matchesList">
+          <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">جاري التحميل...</span>
+            </div>
+            <p class="mt-3">جاري تحميل المباريات...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Evaluation Modal -->
+    <div class="modal fade" id="evaluationModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="fas fa-star me-2" style="color: #ffc107"></i>
+              تقييم حكام المباراة
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div id="evaluationMatchInfo" class="mb-4"></div>
+            <div id="refereesEvaluationList"></div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              إلغاء
+            </button>
+            <button type="button" class="btn btn-primary" id="saveEvaluationsBtn">
+              <i class="fas fa-save me-2"></i>حفظ التقييمات
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="../js/admin/adminEvaluations.js"></script>
+  </body>
+</html>

@@ -80,6 +80,10 @@ async function init() {
       .getElementById("reportFilterJob")
       ?.addEventListener("change", generateReport);
 
+    document
+      .getElementById("reportFilterMinRating")
+      ?.addEventListener("change", generateReport);
+
     await generateReport();
   } catch (error) {
     console.error("Init error:", error);
@@ -95,6 +99,8 @@ async function generateReport() {
     const regionFilter =
       document.getElementById("reportFilterRegion")?.value || "";
     const jobFilter = document.getElementById("reportFilterJob")?.value || "";
+    const minRatingFilter =
+      document.getElementById("reportFilterMinRating")?.value || "";
 
     const content = document.getElementById("reportContent");
     content.innerHTML = `
@@ -117,6 +123,13 @@ async function generateReport() {
           dateTo,
           regionFilter,
           jobFilter,
+        );
+        break;
+      case "evaluations":
+        reportData = await generateEvaluationsReport(
+          dateFrom,
+          dateTo,
+          minRatingFilter,
         );
         break;
       case "competitions":
@@ -187,7 +200,7 @@ async function generateMatchesReport(dateFrom, dateTo) {
     let paidCount = 0;
     let upcomingCount = 0;
     let pastCount = 0;
-    let conflictCount = 0; // ✅ جديد
+    let conflictCount = 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -216,8 +229,6 @@ async function generateMatchesReport(dateFrom, dateTo) {
 
       if (match.is_notified) notifiedCount++;
       if (match.is_paid) paidCount++;
-
-      // ✅ حساب التعارضات
       if (match.has_conflict) conflictCount++;
 
       const matchDate = new Date(match.match_date);
@@ -241,7 +252,7 @@ async function generateMatchesReport(dateFrom, dateTo) {
       paidMatches: paidCount,
       upcomingMatches: upcomingCount,
       pastMatches: pastCount,
-      conflictMatches: conflictCount, // ✅ جديد
+      conflictMatches: conflictCount,
       dateFrom: dateFrom || "الكل",
       dateTo: dateTo || "الكل",
     };
@@ -252,7 +263,7 @@ async function generateMatchesReport(dateFrom, dateTo) {
 }
 
 // ============================================
-// ✅ Generate referees report - مع فلترة المنطقة والوظيفة والتعارضات
+// ✅ Generate referees report
 // ============================================
 async function generateRefereesReport(
   dateFrom,
@@ -261,7 +272,6 @@ async function generateRefereesReport(
   jobFilter = "",
 ) {
   try {
-    // 1. جلب جميع الحكام (مع فلترة المنطقة والوظيفة)
     let refQuery = supabase.from("referees").select("*").order("full_name");
 
     if (regionFilter) {
@@ -275,7 +285,6 @@ async function generateRefereesReport(
 
     if (refError) throw refError;
 
-    // 2. جلب المباريات (مع فلترة اختيارية)
     let query = supabase.from("matches").select(
       `
                 id,
@@ -304,7 +313,6 @@ async function generateRefereesReport(
 
     if (matchError) throw matchError;
 
-    // 3. تجميع المباريات لكل حكم
     const refereeMatches = {};
     matchesData?.forEach((match) => {
       const refereeIds = [
@@ -330,7 +338,6 @@ async function generateRefereesReport(
       });
     });
 
-    // ✅ 3.5 تجميع التعارضات لكل حكم
     const refereeConflicts = {};
     matchesData?.forEach((match) => {
       if (match.has_conflict && match.conflict_details) {
@@ -353,7 +360,6 @@ async function generateRefereesReport(
       }
     });
 
-    // 4. جلب الأعذار لكل حكم
     let excQuery = supabase
       .from("referee_excuses")
       .select("*")
@@ -378,7 +384,6 @@ async function generateRefereesReport(
       refereeExcuses[exc.referee_id].push(exc);
     });
 
-    // 5. جلب سجل الإيقافات
     let suspQuery = supabase.from("suspensions_history").select("*");
 
     if (dateFrom) {
@@ -400,13 +405,12 @@ async function generateRefereesReport(
       refereeSuspensions[susp.referee_id].push(susp);
     });
 
-    // 6. بناء الإحصائيات لكل حكم
     const refereeStats = refereesData?.map((ref) => {
       const matches = refereeMatches[ref.id]?.matches || [];
       const roles = refereeMatches[ref.id]?.roles || {};
       const excuses = refereeExcuses[ref.id] || [];
       const suspensions = refereeSuspensions[ref.id] || [];
-      const conflicts = refereeConflicts[ref.full_name] || []; // ✅ جديد
+      const conflicts = refereeConflicts[ref.full_name] || [];
 
       const mainCount = roles.main || 0;
       const fourthCount = roles.fourth || 0;
@@ -431,8 +435,8 @@ async function generateRefereesReport(
         paidMatches: paidMatches,
         excuseCount: excuses.length,
         suspensionCount: suspensions.length,
-        conflictCount: conflicts.length, // ✅ جديد
-        conflicts: conflicts, // ✅ جديد
+        conflictCount: conflicts.length,
+        conflicts: conflicts,
         isActive: !ref.is_suspended,
       };
     });
@@ -446,7 +450,7 @@ async function generateRefereesReport(
     const totalExcuses =
       refereeStats?.reduce((sum, r) => sum + r.excuseCount, 0) || 0;
     const totalConflicts =
-      refereeStats?.reduce((sum, r) => sum + r.conflictCount, 0) || 0; // ✅ جديد
+      refereeStats?.reduce((sum, r) => sum + r.conflictCount, 0) || 0;
 
     return {
       type: "referees",
@@ -456,7 +460,7 @@ async function generateRefereesReport(
       suspendedReferees: suspendedReferees,
       totalMatches: totalMatches,
       totalExcuses: totalExcuses,
-      totalConflicts: totalConflicts, // ✅ جديد
+      totalConflicts: totalConflicts,
       dateFrom: dateFrom || "الكل",
       dateTo: dateTo || "الكل",
       regionFilter: regionFilter || "الكل",
@@ -464,6 +468,169 @@ async function generateRefereesReport(
     };
   } catch (error) {
     console.error("Error generating referees report:", error);
+    throw error;
+  }
+}
+
+// ============================================
+// ✅ Generate evaluations report
+// ============================================
+async function generateEvaluationsReport(
+  dateFrom,
+  dateTo,
+  minRatingFilter = "",
+) {
+  try {
+    let query = supabase
+      .from("match_evaluations")
+      .select(
+        `
+        *,
+        matches!inner(
+          id,
+          match_date,
+          match_time,
+          stadium,
+          competition_id,
+          home_team:teams!matches_home_team_id_fkey(name),
+          away_team:teams!matches_away_team_id_fkey(name),
+          competitions!inner(name)
+        ),
+        referees!inner(id, full_name, region, job, degree)
+      `,
+      )
+      .order("created_at", { ascending: false });
+
+    if (dateFrom) {
+      query = query.gte("matches.match_date", dateFrom);
+    }
+    if (dateTo) {
+      query = query.lte("matches.match_date", dateTo);
+    }
+
+    const { data: evaluationsData, error } = await query;
+
+    if (error) throw error;
+
+    let filteredEvaluations = evaluationsData || [];
+    if (minRatingFilter) {
+      if (minRatingFilter === "less60") {
+        filteredEvaluations = filteredEvaluations.filter((e) => e.rating < 60);
+      } else {
+        const minVal = parseInt(minRatingFilter);
+        filteredEvaluations = filteredEvaluations.filter(
+          (e) => e.rating >= minVal,
+        );
+      }
+    }
+
+    const totalEvaluations = filteredEvaluations.length;
+    const uniqueMatchIds = new Set(filteredEvaluations.map((e) => e.match_id));
+    const uniqueRefereeIds = new Set(
+      filteredEvaluations.map((e) => e.referee_id),
+    );
+
+    const avgRating =
+      totalEvaluations > 0
+        ? (
+            filteredEvaluations.reduce((sum, e) => sum + e.rating, 0) /
+            totalEvaluations
+          ).toFixed(1)
+        : 0;
+
+    const maxRating =
+      totalEvaluations > 0
+        ? Math.max(...filteredEvaluations.map((e) => e.rating))
+        : 0;
+    const minRating =
+      totalEvaluations > 0
+        ? Math.min(...filteredEvaluations.map((e) => e.rating))
+        : 0;
+
+    const ratingDistribution = {
+      "ممتاز (90-100)": 0,
+      "جيد جداً (80-89)": 0,
+      "جيد (70-79)": 0,
+      "مقبول (60-69)": 0,
+      "ضعيف (أقل من 60)": 0,
+    };
+
+    filteredEvaluations.forEach((e) => {
+      if (e.rating >= 90) ratingDistribution["ممتاز (90-100)"]++;
+      else if (e.rating >= 80) ratingDistribution["جيد جداً (80-89)"]++;
+      else if (e.rating >= 70) ratingDistribution["جيد (70-79)"]++;
+      else if (e.rating >= 60) ratingDistribution["مقبول (60-69)"]++;
+      else ratingDistribution["ضعيف (أقل من 60)"]++;
+    });
+
+    const refereeStatsMap = new Map();
+    filteredEvaluations.forEach((e) => {
+      const refId = e.referee_id;
+      if (!refereeStatsMap.has(refId)) {
+        refereeStatsMap.set(refId, {
+          referee_id: refId,
+          referee_name: e.referees?.full_name || "-",
+          region: e.referees?.region || "-",
+          job: e.referees?.job || "-",
+          degree: e.referees?.degree || "-",
+          total_rating: 0,
+          count: 0,
+          max_rating: 0,
+          min_rating: 100,
+          roles: {},
+          evaluations: [],
+        });
+      }
+
+      const entry = refereeStatsMap.get(refId);
+      entry.total_rating += e.rating;
+      entry.count += 1;
+      entry.max_rating = Math.max(entry.max_rating, e.rating);
+      entry.min_rating = Math.min(entry.min_rating, e.rating);
+
+      const role = e.referee_role || "main";
+      entry.roles[role] = (entry.roles[role] || 0) + 1;
+
+      entry.evaluations.push({
+        match_id: e.match_id,
+        match_date: e.matches?.match_date,
+        home_team: e.matches?.home_team?.name,
+        away_team: e.matches?.away_team?.name,
+        competition: e.matches?.competitions?.name,
+        role: role,
+        rating: e.rating,
+        notes: e.notes,
+      });
+    });
+
+    const refereeStats = Array.from(refereeStatsMap.values()).map((entry) => ({
+      ...entry,
+      avg_rating: (entry.total_rating / entry.count).toFixed(1),
+    }));
+
+    refereeStats.sort((a, b) => b.avg_rating - a.avg_rating);
+
+    refereeStats.forEach((r, idx) => {
+      r.rank = idx + 1;
+    });
+
+    return {
+      type: "evaluations",
+      data: filteredEvaluations,
+      refereeStats: refereeStats,
+      totalEvaluations: totalEvaluations,
+      uniqueMatches: uniqueMatchIds.size,
+      uniqueReferees: uniqueRefereeIds.size,
+      avgRating: avgRating,
+      maxRating: maxRating,
+      minRating: minRating,
+      ratingDistribution: ratingDistribution,
+      minRatingFilter: minRatingFilter || "الكل",
+      dateFrom: dateFrom || "الكل",
+      dateTo: dateTo || "الكل",
+    };
+  } catch (error) {
+    console.error("Error generating evaluations report:", error);
     throw error;
   }
 }
@@ -714,9 +881,6 @@ async function generateFinanceReport(dateFrom, dateTo) {
   }
 }
 
-// ============================================
-// ✅ Render report
-// ============================================
 function renderReport(reportType, reportData) {
   const content = document.getElementById("reportContent");
   let html = "";
@@ -727,6 +891,9 @@ function renderReport(reportType, reportData) {
       break;
     case "referees":
       html = renderRefereesReport(reportData);
+      break;
+    case "evaluations":
+      html = renderEvaluationsReport(reportData);
       break;
     case "competitions":
       html = renderCompetitionsReport(reportData);
@@ -748,6 +915,13 @@ function renderReport(reportType, reportData) {
     });
   });
 
+  document.querySelectorAll(".view-referee-eval-report").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const refereeId = btn.dataset.id;
+      viewRefereeEvaluationsDetails(refereeId, reportData);
+    });
+  });
+
   document.querySelectorAll(".view-supervisor-report").forEach((btn) => {
     btn.addEventListener("click", () => {
       const supervisorId = btn.dataset.id;
@@ -758,6 +932,353 @@ function renderReport(reportType, reportData) {
   setTimeout(() => {
     initReportCharts(reportType, reportData);
   }, 100);
+}
+
+// ============================================
+// ✅ Render evaluations report
+// ============================================
+function renderEvaluationsReport(data) {
+  const totalEvaluations = data?.totalEvaluations || 0;
+  const uniqueMatches = data?.uniqueMatches || 0;
+  const uniqueReferees = data?.uniqueReferees || 0;
+  const avgRating = data?.avgRating || 0;
+  const maxRating = data?.maxRating || 0;
+  const minRating = data?.minRating || 0;
+  const minRatingFilter = data?.minRatingFilter || "الكل";
+
+  const jobNames = {
+    referee: "حكم",
+    assistant: "حكم مساعد",
+    both: "حكم ومساعد",
+  };
+
+  const roleNames = {
+    main: "رئيسي",
+    assistant1: "مساعد أول",
+    assistant2: "مساعد ثاني",
+    fourth: "رابع",
+    var: "VAR",
+    avar: "AVAR",
+  };
+
+  const degreeNames = {
+    "1st": "درجة أولى",
+    "2nd": "درجة ثانية",
+    "3rd": "درجة ثالثة",
+    International: "دولي",
+    New: "جدد",
+  };
+
+  let activeFilters = "";
+  if (minRatingFilter && minRatingFilter !== "الكل") {
+    activeFilters += `<span class="badge bg-warning text-dark me-1">⭐ الحد الأدنى: ${minRatingFilter === "less60" ? "أقل من 60" : minRatingFilter + " فأكثر"}</span>`;
+  }
+
+  return `
+    ${
+      activeFilters
+        ? `
+      <div class="alert alert-light mb-3">
+        <strong>الفلاتر النشطة:</strong> ${activeFilters}
+      </div>
+    `
+        : ""
+    }
+
+    <div class="row g-4 mb-4">
+      <div class="col-md-3">
+        <div class="stat-card">
+          <div class="stat-number" style="font-size: 28px; color: #00c853;">${totalEvaluations}</div>
+          <div class="stat-label">⭐ إجمالي التقييمات</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card">
+          <div class="stat-number" style="font-size: 28px; color: #2196f3;">${uniqueMatches}</div>
+          <div class="stat-label">📊 مباريات مُقيَّمة</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card">
+          <div class="stat-number" style="font-size: 28px; color: #9c27b0;">${uniqueReferees}</div>
+          <div class="stat-label">👤 حكام تم تقييمهم</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card">
+          <div class="stat-number" style="font-size: 28px; color: #ff9800;">${avgRating}</div>
+          <div class="stat-label">📈 متوسط التقييم العام</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+      <div class="col-md-6">
+        <div class="stat-card">
+          <div class="stat-number" style="font-size: 28px; color: #4caf50;">${maxRating}</div>
+          <div class="stat-label">🏆 أعلى تقييم</div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="stat-card">
+          <div class="stat-number" style="font-size: 28px; color: #f44336;">${minRating}</div>
+          <div class="stat-label">📉 أقل تقييم</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+      <div class="col-md-6">
+        <canvas id="ratingDistributionChart" height="250"></canvas>
+      </div>
+      <div class="col-md-6">
+        <canvas id="topRefereesChart" height="250"></canvas>
+      </div>
+    </div>
+
+    <div class="table-responsive mb-4">
+      <h5 class="mb-3">
+        <i class="fas fa-trophy me-2 text-warning"></i>
+        ترتيب الحكام حسب متوسط التقييم
+      </h5>
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>اسم الحكم</th>
+            <th>المنطقة</th>
+            <th>الوظيفة</th>
+            <th>الدرجة</th>
+            <th>عدد التقييمات</th>
+            <th>متوسط التقييم</th>
+            <th>أعلى تقييم</th>
+            <th>أقل تقييم</th>
+            <th>الإجراءات</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            data.refereeStats && data.refereeStats.length > 0
+              ? data.refereeStats
+                  .map((ref) => {
+                    const avg = parseFloat(ref.avg_rating);
+                    let avgColor = "#4caf50";
+                    if (avg < 60) avgColor = "#f44336";
+                    else if (avg < 70) avgColor = "#ff9800";
+                    else if (avg < 80) avgColor = "#ffc107";
+                    else if (avg < 90) avgColor = "#2196f3";
+
+                    const rankBadge =
+                      ref.rank === 1
+                        ? '<span class="badge bg-warning text-dark">🥇 1</span>'
+                        : ref.rank === 2
+                          ? '<span class="badge bg-secondary">🥈 2</span>'
+                          : ref.rank === 3
+                            ? '<span class="badge bg-danger">🥉 3</span>'
+                            : `<span class="badge bg-light text-dark">${ref.rank}</span>`;
+
+                    return `
+                <tr>
+                  <td>${rankBadge}</td>
+                  <td><strong>${ref.referee_name}</strong></td>
+                  <td>${ref.region || "-"}</td>
+                  <td>${jobNames[ref.job] || ref.job || "-"}</td>
+                  <td><span class="badge bg-info">${degreeNames[ref.degree] || ref.degree || "-"}</span></td>
+                  <td><span class="badge bg-primary">${ref.count}</span></td>
+                  <td>
+                    <span class="badge" style="background: ${avgColor}; font-size: 1rem; padding: 6px 12px;">
+                      ${ref.avg_rating}
+                    </span>
+                  </td>
+                  <td class="text-success"><strong>${ref.max_rating}</strong></td>
+                  <td class="text-danger"><strong>${ref.min_rating}</strong></td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-primary view-referee-eval-report" data-id="${ref.referee_id}">
+                      <i class="fas fa-eye"></i> عرض
+                    </button>
+                  </td>
+                </tr>
+              `;
+                  })
+                  .join("")
+              : `
+            <tr>
+              <td colspan="10" class="text-center text-muted">لا توجد تقييمات في هذه الفترة</td>
+            </tr>
+          `
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-responsive">
+      <h5 class="mb-3">
+        <i class="fas fa-list me-2"></i>
+        جميع التقييمات
+      </h5>
+      <table class="table table-sm table-hover">
+        <thead>
+          <tr>
+            <th>التاريخ</th>
+            <th>المباراة</th>
+            <th>المسابقة</th>
+            <th>الحكم</th>
+            <th>الدور</th>
+            <th>التقييم</th>
+            <th>ملاحظات</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            data.data && data.data.length > 0
+              ? data.data
+                  .slice(0, 50)
+                  .map((e) => {
+                    const rating = e.rating;
+                    let ratingColor = "bg-success";
+                    if (rating < 60) ratingColor = "bg-danger";
+                    else if (rating < 70) ratingColor = "bg-warning text-dark";
+                    else if (rating < 80) ratingColor = "bg-info";
+                    else if (rating < 90) ratingColor = "bg-primary";
+
+                    return `
+                <tr>
+                  <td>${new Date(e.matches?.match_date).toLocaleDateString("ar-EG")}</td>
+                  <td>
+                    <strong>${e.matches?.home_team?.name || "-"}</strong>
+                    ×
+                    <strong>${e.matches?.away_team?.name || "-"}</strong>
+                  </td>
+                  <td>${e.matches?.competitions?.name || "-"}</td>
+                  <td>${e.referees?.full_name || "-"}</td>
+                  <td><span class="badge bg-secondary">${roleNames[e.referee_role] || e.referee_role || "-"}</span></td>
+                  <td><span class="badge ${ratingColor}" style="font-size: 0.9rem;">${rating}</span></td>
+                  <td>${e.notes ? (e.notes.length > 30 ? e.notes.substring(0, 28) + "…" : e.notes) : "-"}</td>
+                </tr>
+              `;
+                  })
+                  .join("")
+              : `
+            <tr>
+              <td colspan="7" class="text-center text-muted">لا توجد تقييمات</td>
+            </tr>
+          `
+          }
+        </tbody>
+      </table>
+      ${data.data && data.data.length > 50 ? `<p class="text-muted text-center">عرض أول 50 تقييم من أصل ${data.data.length}</p>` : ""}
+    </div>
+  `;
+}
+
+// ============================================
+// ✅ NEW: View referee evaluations details
+// ============================================
+async function viewRefereeEvaluationsDetails(refereeId, reportData) {
+  try {
+    const refereeStat = reportData.refereeStats?.find(
+      (r) => r.referee_id === refereeId,
+    );
+    if (!refereeStat) {
+      Swal.fire({
+        icon: "warning",
+        title: "تنبيه",
+        text: "لا توجد بيانات لهذا الحكم",
+        confirmButtonText: "حسناً",
+      });
+      return;
+    }
+
+    const roleNames = {
+      main: "رئيسي",
+      assistant1: "مساعد أول",
+      assistant2: "مساعد ثاني",
+      fourth: "رابع",
+      var: "VAR",
+      avar: "AVAR",
+    };
+
+    Swal.fire({
+      title: `تقييمات الحكم: ${refereeStat.referee_name}`,
+      html: `
+        <div style="text-align: right; direction: rtl; max-height: 70vh; overflow-y: auto;">
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <div class="stat-card">
+                <div class="stat-number" style="font-size: 24px; color: #00c853;">${refereeStat.count}</div>
+                <div class="stat-label" style="font-size: 12px;">عدد التقييمات</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="stat-card">
+                <div class="stat-number" style="font-size: 24px; color: #ff9800;">${refereeStat.avg_rating}</div>
+                <div class="stat-label" style="font-size: 12px;">متوسط التقييم</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="stat-card">
+                <div class="stat-number" style="font-size: 24px; color: #2196f3;">#${refereeStat.rank}</div>
+                <div class="stat-label" style="font-size: 12px;">الترتيب</div>
+              </div>
+            </div>
+          </div>
+
+          <hr>
+
+          <h6>تفاصيل التقييمات</h6>
+          <table class="table table-sm table-hover">
+            <thead>
+              <tr>
+                <th>التاريخ</th>
+                <th>المباراة</th>
+                <th>المسابقة</th>
+                <th>الدور</th>
+                <th>التقييم</th>
+                <th>ملاحظات</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${refereeStat.evaluations
+                .sort(
+                  (a, b) => new Date(b.match_date) - new Date(a.match_date),
+                )
+                .map((e) => {
+                  const rating = e.rating;
+                  let ratingColor = "bg-success";
+                  if (rating < 60) ratingColor = "bg-danger";
+                  else if (rating < 70) ratingColor = "bg-warning text-dark";
+                  else if (rating < 80) ratingColor = "bg-info";
+                  else if (rating < 90) ratingColor = "bg-primary";
+
+                  return `
+                  <tr>
+                    <td>${new Date(e.match_date).toLocaleDateString("ar-EG")}</td>
+                    <td>${e.home_team || "-"} × ${e.away_team || "-"}</td>
+                    <td>${e.competition || "-"}</td>
+                    <td><span class="badge bg-secondary">${roleNames[e.role] || e.role}</span></td>
+                    <td><span class="badge ${ratingColor}">${rating}</span></td>
+                    <td>${e.notes || "-"}</td>
+                  </tr>
+                `;
+                })
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      `,
+      width: "900px",
+      confirmButtonText: "إغلاق",
+      confirmButtonColor: "#00c853",
+    });
+  } catch (error) {
+    console.error("Error viewing referee evaluations:", error);
+    Swal.fire({
+      icon: "error",
+      title: "خطأ",
+      text: "حدث خطأ في تحميل تفاصيل التقييمات",
+      confirmButtonText: "حسناً",
+    });
+  }
 }
 
 // ============================================
@@ -990,7 +1511,7 @@ async function viewSupervisorDetails(id) {
 }
 
 // ============================================
-// ✅ Render matches report - مع تمييز التعارضات
+// ✅ Render matches report
 // ============================================
 function renderMatchesReport(data) {
   const totalMatches = data?.totalMatches || 0;
@@ -1112,7 +1633,7 @@ function renderMatchesReport(data) {
 }
 
 // ============================================
-// ✅ Render referees report - مع التعارضات والفلاتر
+// ✅ Render referees report
 // ============================================
 function renderRefereesReport(data) {
   const totalReferees = data?.totalReferees || 0;
@@ -1453,7 +1974,7 @@ function renderFinanceReport(data) {
 }
 
 // ============================================
-// ✅ View referee details - مع سجل التعارضات
+// ✅ View referee details
 // ============================================
 async function viewRefereeDetails(id) {
   try {
@@ -1482,7 +2003,6 @@ async function viewRefereeDetails(id) {
 
     if (matchError) throw matchError;
 
-    // ✅ بناء سجل التعارضات
     const conflictRecords = [];
     matches?.forEach((match) => {
       if (match.has_conflict && match.conflict_details) {
@@ -1779,12 +2299,13 @@ async function viewRefereeDetails(id) {
 }
 
 // ============================================
-// ✅ Initialize report charts
+// ✅ Initialize report charts - مع شارتات التقييمات
 // ============================================
 function initReportCharts(reportType, data) {
   reportCharts.forEach((chart) => chart.destroy());
   reportCharts = [];
 
+  // ✅ شارتات تقرير المباريات
   if (reportType === "matches" && data.matchesByCompetition) {
     const ctx1 = document.getElementById("matchesByCompetitionChart");
     if (ctx1 && Object.keys(data.matchesByCompetition).length > 0) {
@@ -1876,6 +2397,88 @@ function initReportCharts(reportType, data) {
       reportCharts.push(chart);
     }
   }
+
+  // ✅ شارتات تقرير التقييمات
+  if (reportType === "evaluations") {
+    // Chart 1: توزيع التقييمات
+    const ctx1 = document.getElementById("ratingDistributionChart");
+    if (ctx1 && data.ratingDistribution) {
+      const chart = new Chart(ctx1, {
+        type: "bar",
+        data: {
+          labels: Object.keys(data.ratingDistribution),
+          datasets: [
+            {
+              label: "عدد التقييمات",
+              data: Object.values(data.ratingDistribution),
+              backgroundColor: [
+                "rgba(76, 175, 80, 0.7)",
+                "rgba(33, 150, 243, 0.7)",
+                "rgba(255, 193, 7, 0.7)",
+                "rgba(255, 152, 0, 0.7)",
+                "rgba(244, 67, 54, 0.7)",
+              ],
+              borderColor: [
+                "rgb(76, 175, 80)",
+                "rgb(33, 150, 243)",
+                "rgb(255, 193, 7)",
+                "rgb(255, 152, 0)",
+                "rgb(244, 67, 54)",
+              ],
+              borderWidth: 2,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            title: { display: true, text: "توزيع التقييمات حسب الفئة" },
+          },
+          scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1 } },
+          },
+        },
+      });
+      reportCharts.push(chart);
+    }
+
+    // Chart 2: أعلى 10 حكام
+    const ctx2 = document.getElementById("topRefereesChart");
+    if (ctx2 && data.refereeStats && data.refereeStats.length > 0) {
+      const topRefs = data.refereeStats.slice(0, 10);
+
+      const chart = new Chart(ctx2, {
+        type: "bar",
+        data: {
+          labels: topRefs.map((r) => r.referee_name),
+          datasets: [
+            {
+              label: "متوسط التقييم",
+              data: topRefs.map((r) => parseFloat(r.avg_rating)),
+              backgroundColor: "rgba(156, 39, 176, 0.6)",
+              borderColor: "rgb(156, 39, 176)",
+              borderWidth: 2,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: "y",
+          plugins: {
+            legend: { display: false },
+            title: { display: true, text: "أعلى 10 حكام حسب متوسط التقييم" },
+          },
+          scales: {
+            x: { beginAtZero: true, max: 100 },
+          },
+        },
+      });
+      reportCharts.push(chart);
+    }
+  }
 }
 
 // ============================================
@@ -1925,6 +2528,19 @@ function exportReportExcel() {
           "عدد الأعذار": r.excuseCount,
           "عدد التعارضات": r.conflictCount || 0,
           الحالة: r.isActive ? "نشط" : "موقوف",
+        }));
+        break;
+      case "evaluations": // ✅ جديد
+        excelData = data.refereeStats.map((r) => ({
+          الترتيب: r.rank,
+          "اسم الحكم": r.referee_name,
+          المنطقة: r.region || "-",
+          الوظيفة: r.job || "-",
+          الدرجة: r.degree || "-",
+          "عدد التقييمات": r.count,
+          "متوسط التقييم": r.avg_rating,
+          "أعلى تقييم": r.max_rating,
+          "أقل تقييم": r.min_rating,
         }));
         break;
       case "supervisors":
@@ -2036,15 +2652,28 @@ function toggleReportFilters() {
   const reportType = document.getElementById("reportType").value;
   const regionContainer = document.getElementById("regionFilterContainer");
   const jobContainer = document.getElementById("jobFilterContainer");
+  const minRatingContainer = document.getElementById(
+    "minRatingFilterContainer",
+  );
 
   if (reportType === "referees") {
     regionContainer.style.display = "block";
     jobContainer.style.display = "block";
+    minRatingContainer.style.display = "none";
+    document.getElementById("reportFilterMinRating").value = "";
+  } else if (reportType === "evaluations") {
+    regionContainer.style.display = "none";
+    jobContainer.style.display = "none";
+    minRatingContainer.style.display = "block";
+    document.getElementById("reportFilterRegion").value = "";
+    document.getElementById("reportFilterJob").value = "";
   } else {
     regionContainer.style.display = "none";
     jobContainer.style.display = "none";
+    minRatingContainer.style.display = "none";
     document.getElementById("reportFilterRegion").value = "";
     document.getElementById("reportFilterJob").value = "";
+    document.getElementById("reportFilterMinRating").value = "";
   }
 }
 

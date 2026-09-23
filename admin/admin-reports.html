@@ -125,6 +125,7 @@
                 <select class="form-select" id="reportType">
                   <option value="matches">تقرير المباريات</option>
                   <option value="referees">تقرير الحكام</option>
+                  <option value="evaluations">تقرير التقييمات</option>
                   <option value="supervisors">تقرير المراقبين</option>
                   <option value="competitions">تقرير المسابقات</option>
                   <option value="finance">التقرير المالي</option>
@@ -182,6 +183,23 @@
                   <option value="referee">حكم</option>
                   <option value="assistant">حكم مساعد</option>
                   <option value="both">حكم ومساعد</option>
+                </select>
+              </div>
+              <!-- ✅ فلتر الحد الأدنى للتقييم (يظهر مع تقرير التقييمات فقط) -->
+              <div
+                class="col-md-3"
+                id="minRatingFilterContainer"
+                style="display: none"
+              >
+                <label class="form-label">الحد الأدنى للتقييم</label>
+                <select class="form-select" id="reportFilterMinRating">
+                  <option value="">الكل</option>
+                  <option value="90">90 فأكثر</option>
+                  <option value="80">80 فأكثر</option>
+                  <option value="70">70 فأكثر</option>
+                  <option value="60">60 فأكثر</option>
+                  <option value="50">50 فأكثر</option>
+                  <option value="less60">أقل من 60</option>
                 </select>
               </div>
               <div class="col-md-3">

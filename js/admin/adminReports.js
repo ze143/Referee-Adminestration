@@ -129,6 +129,7 @@ async function generateReport() {
         reportData = await generateEvaluationsReport(
           dateFrom,
           dateTo,
+          jobFilter,
           minRatingFilter,
         );
         break;
@@ -478,6 +479,7 @@ async function generateRefereesReport(
 async function generateEvaluationsReport(
   dateFrom,
   dateTo,
+  jobFilter = "",
   minRatingFilter = "",
 ) {
   try {
@@ -513,6 +515,15 @@ async function generateEvaluationsReport(
     if (error) throw error;
 
     let filteredEvaluations = evaluationsData || [];
+
+    // ✅ فلتر الوظيفة
+    if (jobFilter) {
+      filteredEvaluations = filteredEvaluations.filter(
+        (e) => e.referees?.job === jobFilter,
+      );
+    }
+
+    // فلتر الحد الأدنى للتقييم
     if (minRatingFilter) {
       if (minRatingFilter === "less60") {
         filteredEvaluations = filteredEvaluations.filter((e) => e.rating < 60);
@@ -626,6 +637,7 @@ async function generateEvaluationsReport(
       minRating: minRating,
       ratingDistribution: ratingDistribution,
       minRatingFilter: minRatingFilter || "الكل",
+      jobFilter: jobFilter || "الكل",
       dateFrom: dateFrom || "الكل",
       dateTo: dateTo || "الكل",
     };
@@ -945,6 +957,7 @@ function renderEvaluationsReport(data) {
   const maxRating = data?.maxRating || 0;
   const minRating = data?.minRating || 0;
   const minRatingFilter = data?.minRatingFilter || "الكل";
+  const jobFilter = data?.jobFilter || "الكل";
 
   const jobNames = {
     referee: "حكم",
@@ -970,6 +983,9 @@ function renderEvaluationsReport(data) {
   };
 
   let activeFilters = "";
+  if (jobFilter && jobFilter !== "الكل") {
+    activeFilters += `<span class="badge bg-primary me-1">💼 ${jobNames[jobFilter] || jobFilter}</span>`;
+  }
   if (minRatingFilter && minRatingFilter !== "الكل") {
     activeFilters += `<span class="badge bg-warning text-dark me-1">⭐ الحد الأدنى: ${minRatingFilter === "less60" ? "أقل من 60" : minRatingFilter + " فأكثر"}</span>`;
   }
@@ -1239,9 +1255,7 @@ async function viewRefereeEvaluationsDetails(refereeId, reportData) {
             </thead>
             <tbody>
               ${refereeStat.evaluations
-                .sort(
-                  (a, b) => new Date(b.match_date) - new Date(a.match_date),
-                )
+                .sort((a, b) => new Date(b.match_date) - new Date(a.match_date))
                 .map((e) => {
                   const rating = e.rating;
                   let ratingColor = "bg-success";
@@ -2530,7 +2544,7 @@ function exportReportExcel() {
           الحالة: r.isActive ? "نشط" : "موقوف",
         }));
         break;
-      case "evaluations": // ✅ جديد
+      case "evaluations":
         excelData = data.refereeStats.map((r) => ({
           الترتيب: r.rank,
           "اسم الحكم": r.referee_name,
@@ -2662,11 +2676,11 @@ function toggleReportFilters() {
     minRatingContainer.style.display = "none";
     document.getElementById("reportFilterMinRating").value = "";
   } else if (reportType === "evaluations") {
+    // ✅ تقرير التقييمات: يظهر فلتر الوظيفة + الحد الأدنى للتقييم
     regionContainer.style.display = "none";
-    jobContainer.style.display = "none";
+    jobContainer.style.display = "block";
     minRatingContainer.style.display = "block";
     document.getElementById("reportFilterRegion").value = "";
-    document.getElementById("reportFilterJob").value = "";
   } else {
     regionContainer.style.display = "none";
     jobContainer.style.display = "none";

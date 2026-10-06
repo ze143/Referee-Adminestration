@@ -1,4 +1,4 @@
-// adminMatches.js - النسخة النهائية (إلغاء منع التعارض - تمييز فقط)
+// adminMatches.js - النسخة النهائية (إلغاء منع التعارض - تمييز فقط + Select2 للمراقب)
 import { supabase } from "../supabaseClient.js";
 import { requireAuth, logout } from "../auth.js";
 import {
@@ -16,6 +16,7 @@ let allSupervisors = [];
 let currentMatchId = null;
 let refereeMatchCounts = {};
 let allGroups = [];
+let supervisorMatchCounts = {};
 
 // ✅ دالة مساعدة لتنسيق الوقت من 24 ساعة إلى 12 ساعة (عربي)
 function formatTime(timeString) {
@@ -129,14 +130,41 @@ async function init() {
     await loadCompetitions();
     await loadReferees();
     await loadTeams();
+    populateTeamFilters(); // ✅ جديد
+
     await loadSupervisors();
     await loadMatches();
 
     // 1. مستمعات الفلاتر الأساسية
+    // ✅ مستمع تغيير المسابقة (عشان يحدّث فلتر الفرق)
     document
       .getElementById("filterCompetition")
-      .addEventListener("change", filterMatches);
+      .addEventListener("change", () => {
+        // ✅ 1. فضّي الفلترين الأول
+        const homeSelect = document.getElementById("filterHomeTeam");
+        const awaySelect = document.getElementById("filterAwayTeam");
 
+        if (homeSelect) {
+          if ($(homeSelect).data("select2")) {
+            $(homeSelect).val("").trigger("change");
+          } else {
+            homeSelect.value = "";
+          }
+        }
+        if (awaySelect) {
+          if ($(awaySelect).data("select2")) {
+            $(awaySelect).val("").trigger("change");
+          } else {
+            awaySelect.value = "";
+          }
+        }
+
+        // ✅ 2. عبّي فلتر الفرق حسب المسابقة
+        populateTeamFilters();
+
+        // ✅ 3. طبّق الفلترة
+        filterMatches();
+      });
     document
       .getElementById("filterDate")
       .addEventListener("change", filterMatches);
@@ -149,6 +177,10 @@ async function init() {
     document
       .getElementById("filterSort")
       .addEventListener("change", filterMatches);
+
+    // ✅ مستمعات فلتر الفرق (event delegation for Select2)
+$(document).on("change", "#filterHomeTeam", filterMatches);
+$(document).on("change", "#filterAwayTeam", filterMatches);
 
     // 3. ✅ مستمع فلترة التبليغ
     document
@@ -177,6 +209,7 @@ async function init() {
       .getElementById("saveMatchBtn")
       .addEventListener("click", saveMatch);
 
+    // ✅ مستمع تغيير المسابقة
     document
       .getElementById("matchCompetition")
       .addEventListener("change", async function () {
@@ -184,12 +217,17 @@ async function init() {
         checkAndToggleVar(this.value);
 
         await loadRefereeMatchCounts(this.value);
+        await loadSupervisorMatchCounts(this.value); // ✅ رجّعها
+
         await populateRefereeDropdownsWithAvailability(
           null,
           document.getElementById("matchDate").value,
           document.getElementById("matchTime").value,
           document.getElementById("matchId").value || null,
         );
+
+        // ✅ أعد تعبئة فلتر المراقبين (بدون counts)
+        populateSupervisorDropdowns();
       });
 
     document
@@ -238,7 +276,6 @@ async function loadReferees() {
 
     if (error) throw error;
 
-    // ✅ منع التكرار بالـ ID
     const seenIds = new Set();
     allReferees = (data || []).filter((ref) => {
       if (seenIds.has(ref.id)) {
@@ -249,7 +286,6 @@ async function loadReferees() {
       return true;
     });
 
-    // ✅ تحذير لو فيه أسماء مكررة (IDs مختلفة)
     const nameMap = {};
     allReferees.forEach((ref) => {
       if (!nameMap[ref.full_name]) {
@@ -293,7 +329,6 @@ async function loadSupervisors() {
 
     if (error) throw error;
     allSupervisors = data || [];
-    populateSupervisorDropdowns();
   } catch (error) {
     console.error("Error loading supervisors:", error);
   }
@@ -325,7 +360,6 @@ async function loadMatches() {
 
     allMatches = data || [];
 
-    // ✅ تعبئة فلتر المجموعات من الملاحظات
     populateGroupFilter();
 
     renderMatches(allMatches);
@@ -399,7 +433,6 @@ function populateCompetitionDropdowns() {
 
 // ✅ دالة getRefereesByRole مع منع التكرار
 function getRefereesByRole(role, excludeRefereeId = null) {
-  // ✅ فلتر حسب الدور - استخدام Set لمنع التكرار
   let filtered = allReferees.filter((ref) => {
     if (excludeRefereeId && ref.id === excludeRefereeId) {
       return false;
@@ -429,7 +462,6 @@ function getRefereesByRole(role, excludeRefereeId = null) {
     }
   });
 
-  // ✅ منع التكرار (لو فيه حكام مكررين بنفس ID)
   const seenIds = new Set();
   filtered = filtered.filter((ref) => {
     if (seenIds.has(ref.id)) {
@@ -440,7 +472,6 @@ function getRefereesByRole(role, excludeRefereeId = null) {
     return true;
   });
 
-  // ✅ ترتيب حسب الدرجة ثم الاسم
   const degreeOrder = {
     "1st": 1,
     "2nd": 2,
@@ -622,12 +653,108 @@ function populateRefereeDropdownsWithExclusions(
 
 function populateSupervisorDropdowns() {
   const select = document.getElementById("supervisorReferee");
+  if (!select) {
+    console.warn("❌ supervisorReferee not found");
+    return;
+  }
+
+  // ✅ لو Select2 شغال، اعمله destroy
+  if (
+    typeof $ !== "undefined" &&
+    $(select).hasClass("select2-hidden-accessible")
+  ) {
+    $(select).select2("destroy");
+  }
+
+  // ✅ شيل أي containers قديمة
+  $(select).next(".select2-container").remove();
+  $(select).siblings(".select2-container").remove();
+
+  // ✅ نظّف الخيارات
+  select.innerHTML = '<option value="">اختر المراقب</option>';
+
+  // ✅ ضيف الخيارات مع عدد المباريات
+  allSupervisors.forEach((sup) => {
+    let label = sup.full_name;
+
+    if (sup.region) {
+      label += ` (${sup.region})`;
+    }
+
+    const matchCount = supervisorMatchCounts[sup.id] || 0;
+    label += ` (عدد: ${matchCount} مباراة)`;
+
+    const option = document.createElement("option");
+    option.value = sup.id;
+    option.textContent = label;
+    select.appendChild(option);
+  });
+
+  // ❌ شيل السطر ده:
+  // initSupervisorSelect2();
+
+  // ✅ بدلًا منه، شغّله بس لو المودال مفتوح
+  setTimeout(() => {
+    const modal = document.getElementById("matchModal");
+    if (modal && modal.classList.contains("show")) {
+      initSupervisorSelect2();
+    }
+  }, 50);
+}
+
+// ✅ دالة تفعيل Select2 على فلتر المراقب
+function initSupervisorSelect2() {
+  if (typeof $ === "undefined" || typeof $.fn.select2 === "undefined") {
+    console.warn("❌ Select2 not loaded");
+    return;
+  }
+
+  const select = document.getElementById("supervisorReferee");
   if (!select) return;
 
-  select.innerHTML = '<option value="">اختر المراقب</option>';
-  allSupervisors.forEach((sup) => {
-    select.innerHTML += `<option value="${sup.id}">${sup.full_name}</option>`;
-  });
+  try {
+    // ✅ لو شغال، اعمله destroy الأول
+    if ($(select).hasClass("select2-hidden-accessible")) {
+      $(select).select2("destroy");
+    }
+
+    // ✅ شيل أي containers زايدة
+    $(select).next(".select2-container").remove();
+    $(select).siblings(".select2-container").remove();
+
+    // ✅ شغل Select2
+    $(select).select2({
+      theme: "bootstrap-5",
+      width: "100%",
+      placeholder: "اختر المراقب...",
+      allowClear: true,
+      language: {
+        searching: function () {
+          return "جاري البحث...";
+        },
+        noResults: function () {
+          return "لا توجد نتائج";
+        },
+      },
+      dropdownParent: $("#matchModal"),
+    });
+
+    // ✅ تركيز تلقائي على البحث
+    $(select).off("select2:open");
+    $(select).on("select2:open", function () {
+      setTimeout(() => {
+        const searchInput = document.querySelector(
+          ".select2-container--open .select2-search__field",
+        );
+        if (searchInput) {
+          searchInput.focus();
+          searchInput.select();
+        }
+      }, 50);
+    });
+  } catch (e) {
+    console.warn("❌ Error:", e);
+  }
 }
 
 function populateCompetitionFilter() {
@@ -637,6 +764,66 @@ function populateCompetitionFilter() {
     select.innerHTML += `<option value="${comp.id}">${comp.name}</option>`;
   });
 }
+
+// ✅ تعبئة فلتر الفرق (المضيف والضيف) حسب المسابقة المختارة
+function populateTeamFilters() {
+  const homeSelect = document.getElementById("filterHomeTeam");
+  const awaySelect = document.getElementById("filterAwayTeam");
+  const competitionFilter = document.getElementById("filterCompetition");
+
+  if (!homeSelect || !awaySelect) {
+    console.warn("❌ Team filter elements not found");
+    return;
+  }
+
+  const competitionId = competitionFilter?.value || "";
+
+  // ✅ 1. اعمل destroy لـ Select2 لو شغال
+  [homeSelect, awaySelect].forEach((el) => {
+    if ($(el).data("select2")) {
+      $(el).select2("destroy");
+    }
+  });
+
+  // ✅ 2. لو مفيش مسابقة مختارة، فضي الفلترين
+  if (!competitionId) {
+    homeSelect.innerHTML = '<option value="">جميع الفرق</option>';
+    awaySelect.innerHTML = '<option value="">جميع الفرق</option>';
+    return;
+  }
+
+  // ✅ 3. فلتر الفرق حسب المسابقة
+  const competitionTeams = allTeams
+    .filter((team) => team.competition_id === competitionId)
+    .sort((a, b) => a.name.localeCompare(b.name, "ar"));
+
+  if (competitionTeams.length === 0) {
+    homeSelect.innerHTML = '<option value="">لا توجد فرق</option>';
+    awaySelect.innerHTML = '<option value="">لا توجد فرق</option>';
+    return;
+  }
+
+  // ✅ 4. بناء الخيارات
+  const options = competitionTeams
+    .map((team) => `<option value="${team.id}">${team.name}</option>`)
+    .join("");
+
+  homeSelect.innerHTML = '<option value="">جميع الفرق</option>' + options;
+  awaySelect.innerHTML = '<option value="">جميع الفرق</option>' + options;
+
+  // ✅ 5. تفعيل Select2 من جديد
+  if (typeof $ !== "undefined" && $.fn.select2) {
+    [homeSelect, awaySelect].forEach((el) => {
+      $(el).select2({
+        theme: "bootstrap-5",
+        width: "100%",
+        placeholder: "اختر الفريق...",
+        allowClear: true,
+      });
+    });
+  }
+}  
+
 
 function checkAndToggleVar(competitionId) {
   const comp = allCompetitions.find((c) => c.id === competitionId);
@@ -673,7 +860,7 @@ function updateTeamDropdowns() {
 }
 
 // ============================================
-// ✅ التحقق من توفر الحكم (موقوف أو تعارض - 48 ساعة)
+// ✅ التحقق من توفر الحكم
 // ============================================
 async function checkRefereeAvailabilityForDropdown(
   refereeId,
@@ -770,7 +957,7 @@ async function checkRefereeAvailabilityForDropdown(
 }
 
 // ============================================
-// ✅ إعادة حساب التعارضات لمباراة واحدة فقط
+// ✅ إعادة حساب التعارضات لمباراة واحدة
 // ============================================
 async function recalculateConflictsForMatch(matchId) {
   try {
@@ -1255,6 +1442,9 @@ function filterMatches() {
   const sort = document.getElementById("filterSort")?.value || "newest";
   const notified = document.getElementById("filterNotified")?.value;
   const group = document.getElementById("filterGroup")?.value;
+  // ✅ جديد
+  const homeTeam = document.getElementById("filterHomeTeam")?.value;
+  const awayTeam = document.getElementById("filterAwayTeam")?.value;
 
   let filtered = [...allMatches];
 
@@ -1267,6 +1457,16 @@ function filterMatches() {
       const matchGroup = extractGroupFromNotes(match.notes);
       return matchGroup === group;
     });
+  }
+
+  // ✅ فلتر الفريق المضيف
+  if (homeTeam) {
+    filtered = filtered.filter((match) => match.home_team_id === homeTeam);
+  }
+
+  // ✅ فلتر الفريق الضيف
+  if (awayTeam) {
+    filtered = filtered.filter((match) => match.away_team_id === awayTeam);
   }
 
   if (date) {
@@ -1305,7 +1505,7 @@ function filterMatches() {
 }
 
 // ============================================
-// ✅ تعبئة قوائم الحكام مع التحقق (تمييز فقط - بدون منع التعارض)
+// ✅ تعبئة قوائم الحكام مع التحقق
 // ============================================
 async function populateRefereeDropdownsWithAvailability(
   excludeRefereeId = null,
@@ -1562,7 +1762,7 @@ async function populateRefereeDropdownsWithAvailability(
   initSelect2();
 }
 
-function openAddMatchModal() {
+async function openAddMatchModal() {
   document.getElementById("matchModalTitle").textContent = "إضافة مباراة جديدة";
   document.getElementById("matchForm").reset();
   document.getElementById("matchId").value = "";
@@ -1572,27 +1772,37 @@ function openAddMatchModal() {
   document.getElementById("varContainer").style.display = "none";
   document.getElementById("avarContainer").style.display = "none";
 
+  // ✅ 1. نظّف Select2 containers القديمة
+  document.querySelectorAll(".select2-container").forEach((el) => el.remove());
+  document.querySelectorAll(".select2-hidden-accessible").forEach((el) => {
+    if ($(el).data("select2")) {
+      $(el).select2("destroy");
+    }
+    el.classList.remove("select2-hidden-accessible");
+  });
+
   updateTeamDropdowns();
 
+  // ✅ 2. جهّز البيانات (counts)
   const competitionId = document.getElementById("matchCompetition").value;
   if (competitionId) {
-    loadRefereeMatchCounts(competitionId).then(() => {
-      populateRefereeDropdownsWithAvailability();
-      setTimeout(() => {
-        initSelect2();
-      }, 300);
-    });
-  } else {
-    populateRefereeDropdownsWithAvailability();
-    setTimeout(() => {
-      initSelect2();
-    }, 300);
+    await loadRefereeMatchCounts(competitionId);
+    await loadSupervisorMatchCounts(competitionId);
   }
 
+  // ✅ 3. املأ الدروب داونز
+  await populateRefereeDropdownsWithAvailability();
   populateSupervisorDropdowns();
 
+  // ✅ 4. افتح المودال الأول
   const modal = new bootstrap.Modal(document.getElementById("matchModal"));
   modal.show();
+
+  // ✅ 5. بعد فتح المودال، شغّل Select2 (لأن العنصر بقى مرئي)
+  setTimeout(() => {
+    initSelect2();
+    initSupervisorSelect2();
+  }, 100);
 
   document
     .getElementById("matchDate")
@@ -1610,6 +1820,7 @@ async function updateRefereeAvailability() {
 
   if (competitionId) {
     await loadRefereeMatchCounts(competitionId);
+    await loadSupervisorMatchCounts(competitionId);
   }
 
   if (matchDate && matchTime) {
@@ -1621,7 +1832,13 @@ async function updateRefereeAvailability() {
     );
   }
 
-  setTimeout(() => initSelect2(), 200);
+  populateSupervisorDropdowns();
+
+  // ✅ شغّل Select2 بعدين
+  setTimeout(() => {
+    initSelect2();
+    initSupervisorSelect2();
+  }, 100);
 }
 
 async function editMatch(id) {
@@ -1651,6 +1868,7 @@ async function editMatch(id) {
 
     if (data.competition_id) {
       await loadRefereeMatchCounts(data.competition_id);
+      await loadSupervisorMatchCounts(data.competition_id); // ✅ رجّعها
     }
 
     populateRefereeDropdownsWithExclusions(
@@ -1662,8 +1880,8 @@ async function editMatch(id) {
       data.avar_referee_id,
     );
 
-    document.getElementById("supervisorReferee").value =
-      data.supervisor_id || "";
+    // ✅ أعد تعبئة فلتر المراقبين
+    populateSupervisorDropdowns();
 
     document.getElementById("matchModal").dataset.mode = "edit";
     currentMatchId = id;
@@ -1680,6 +1898,7 @@ async function editMatch(id) {
       setSelect2Value("assistant2", data.assistant2_referee_id);
       setSelect2Value("varReferee", data.var_referee_id);
       setSelect2Value("avarReferee", data.avar_referee_id);
+      setSelect2Value("supervisorReferee", data.supervisor_id);
     }, 300);
   } catch (error) {
     console.error("Error loading match for edit:", error);
@@ -1693,7 +1912,7 @@ async function editMatch(id) {
 }
 
 // ============================================
-// ✅ saveMatch - بدون منع (تمييز فقط + تخزين حالة التعارض)
+// ✅ saveMatch
 // ============================================
 async function saveMatch() {
   try {
@@ -1774,7 +1993,6 @@ async function saveMatch() {
       avarRefereeId,
     ].filter((id) => id);
 
-    // ✅ احسب التعارضات (بدون منع)
     let hasConflict = false;
     const conflictDetails = [];
 
@@ -1855,7 +2073,6 @@ async function saveMatch() {
 
     if (result.error) throw result.error;
 
-    // ✅ بعد الحفظ: أعد فحص التعارضات للمباريات القريبة فقط
     const savedMatchId = mode === "add" ? result.data?.[0]?.id : id;
     if (savedMatchId) {
       await recalculateConflictsForMatch(savedMatchId);
@@ -1881,6 +2098,17 @@ async function saveMatch() {
     );
     modal.hide();
 
+    // ✅ نظّف Select2 بعد الإغلاق
+    document
+      .querySelectorAll(".select2-container")
+      .forEach((el) => el.remove());
+    document.querySelectorAll(".select2-hidden-accessible").forEach((el) => {
+      if ($(el).data("select2")) {
+        $(el).select2("destroy");
+      }
+      el.classList.remove("select2-hidden-accessible");
+    });
+
     await loadMatches();
   } catch (error) {
     console.error("Error saving match:", error);
@@ -1894,7 +2122,7 @@ async function saveMatch() {
 }
 
 // ============================================
-// ✅ deleteMatch - مع إعادة حساب التعارضات للمباريات القريبة
+// ✅ deleteMatch
 // ============================================
 async function deleteMatch(id) {
   const result = await Swal.fire({
@@ -1911,7 +2139,6 @@ async function deleteMatch(id) {
   if (!result.isConfirmed) return;
 
   try {
-    // ✅ جيب المباراة قبل الحذف
     const { data: matchToDelete, error: fetchError } = await supabase
       .from("matches")
       .select(
@@ -1922,11 +2149,9 @@ async function deleteMatch(id) {
 
     if (fetchError) throw fetchError;
 
-    // ✅ احذف المباراة
     const { error } = await supabase.from("matches").delete().eq("id", id);
     if (error) throw error;
 
-    // ✅ اعيد حساب التعارضات للمباريات القريبة
     if (matchToDelete) {
       const allRefIds = [
         matchToDelete.main_referee_id,
@@ -2159,7 +2384,6 @@ async function saveExcuse() {
       },
     ]);
 
-    // ✅ أعد حساب التعارضات للمباريات القريبة
     const allRefIdsAfterExcuse = [
       match.main_referee_id,
       match.fourth_referee_id,
@@ -2456,8 +2680,37 @@ async function handleLogout() {
   }
 }
 
+async function loadSupervisorMatchCounts(competitionId) {
+  if (!competitionId) {
+    supervisorMatchCounts = {};
+    return;
+  }
+
+  try {
+    const { data: matches, error } = await supabase
+      .from("matches")
+      .select("supervisor_id")
+      .eq("competition_id", competitionId)
+      .not("supervisor_id", "is", null);
+
+    if (error) throw error;
+
+    const counts = {};
+    matches.forEach((match) => {
+      if (match.supervisor_id) {
+        counts[match.supervisor_id] = (counts[match.supervisor_id] || 0) + 1;
+      }
+    });
+
+    supervisorMatchCounts = counts;
+  } catch (error) {
+    console.error("Error loading supervisor match counts:", error);
+    supervisorMatchCounts = {};
+  }
+}
+
 // ============================================
-// ✅ استخراج المجموعة من الملاحظات (ديناميكي)
+// ✅ استخراج المجموعة من الملاحظات
 // ============================================
 function extractGroupFromNotes(notes) {
   if (!notes) return null;
@@ -2503,7 +2756,7 @@ function extractGroupFromNotes(notes) {
 }
 
 // ============================================
-// ✅ استخراج كل المجموعات الفريدة من المباريات
+// ✅ استخراج كل المجموعات الفريدة
 // ============================================
 function extractAllGroupsFromMatches() {
   const groupsSet = new Set();

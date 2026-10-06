@@ -5,6 +5,7 @@ import Swal from "https://cdn.jsdelivr.net/npm/sweetalert2@11/+esm";
 
 let currentReportData = null;
 let reportCharts = [];
+let allCompetitions = []; // ✅ جديد
 
 // ✅ دالة مساعدة لتنسيق الوقت
 function formatTime(timeString) {
@@ -84,9 +85,41 @@ async function init() {
       .getElementById("reportFilterMinRating")
       ?.addEventListener("change", generateReport);
 
+    // ✅ جديد: مستمع فلتر المسابقات
+    document
+      .getElementById("reportFilterCompetition")
+      ?.addEventListener("change", generateReport);
+
+    // ✅ تحميل المسابقات أولاً
+    await loadCompetitions();
+
     await generateReport();
   } catch (error) {
     console.error("Init error:", error);
+  }
+}
+
+// ✅ دالة تحميل المسابقات
+async function loadCompetitions() {
+  try {
+    const { data, error } = await supabase
+      .from("competitions")
+      .select("id, name")
+      .order("name");
+
+    if (error) throw error;
+
+    allCompetitions = data || [];
+
+    const select = document.getElementById("reportFilterCompetition");
+    if (select) {
+      select.innerHTML = '<option value="">جميع المسابقات</option>';
+      allCompetitions.forEach((comp) => {
+        select.innerHTML += `<option value="${comp.id}">${comp.name}</option>`;
+      });
+    }
+  } catch (error) {
+    console.error("Error loading competitions:", error);
   }
 }
 
@@ -101,6 +134,9 @@ async function generateReport() {
     const jobFilter = document.getElementById("reportFilterJob")?.value || "";
     const minRatingFilter =
       document.getElementById("reportFilterMinRating")?.value || "";
+    // ✅ جديد
+    const competitionFilter =
+      document.getElementById("reportFilterCompetition")?.value || "";
 
     const content = document.getElementById("reportContent");
     content.innerHTML = `
@@ -131,6 +167,7 @@ async function generateReport() {
           dateTo,
           jobFilter,
           minRatingFilter,
+          competitionFilter, // ✅ جديد
         );
         break;
       case "competitions":
@@ -481,6 +518,7 @@ async function generateEvaluationsReport(
   dateTo,
   jobFilter = "",
   minRatingFilter = "",
+  competitionFilter = "",
 ) {
   try {
     let query = supabase
@@ -496,7 +534,7 @@ async function generateEvaluationsReport(
           competition_id,
           home_team:teams!matches_home_team_id_fkey(name),
           away_team:teams!matches_away_team_id_fkey(name),
-          competitions!inner(name)
+          competitions!inner(id, name)
         ),
         referees!inner(id, full_name, region, job, degree)
       `,
@@ -516,6 +554,13 @@ async function generateEvaluationsReport(
 
     let filteredEvaluations = evaluationsData || [];
 
+    // ✅ فلتر المسابقة
+    if (competitionFilter) {
+      filteredEvaluations = filteredEvaluations.filter(
+        (e) => e.matches?.competition_id === competitionFilter,
+      );
+    }
+
     // ✅ فلتر الوظيفة
     if (jobFilter) {
       filteredEvaluations = filteredEvaluations.filter(
@@ -523,7 +568,9 @@ async function generateEvaluationsReport(
       );
     }
 
-    // فلتر الحد الأدنى للتقييم
+    // ✅ فلتر الحد الأدنى للتقييم
+    // ملاحظة: الفلتر ده هيتطبق على كل التقييمات بما فيها الرابع
+    // عشان لو حد عايز يشوف اللي تقييمهم واطي حتى كرابع
     if (minRatingFilter) {
       if (minRatingFilter === "less60") {
         filteredEvaluations = filteredEvaluations.filter((e) => e.rating < 60);
@@ -535,27 +582,37 @@ async function generateEvaluationsReport(
       }
     }
 
-    const totalEvaluations = filteredEvaluations.length;
-    const uniqueMatchIds = new Set(filteredEvaluations.map((e) => e.match_id));
+    // ✅✅✅ التعديل الأساسي: فصل تقييمات الحكم الرابع
+    // countedEvaluations = التقييمات اللي هتتحسب في الإحصائيات (كل حاجة ما عدا الرابع)
+    const countedEvaluations = filteredEvaluations.filter(
+      (e) => e.referee_role !== "fourth",
+    );
+
+    // allEvaluations = كل التقييمات (للحفظ في سجل الحكم)
+    const allEvaluations = filteredEvaluations;
+
+    // ✅ الإحصائيات بقت مبنية على countedEvaluations
+    const totalEvaluations = countedEvaluations.length;
+    const uniqueMatchIds = new Set(countedEvaluations.map((e) => e.match_id));
     const uniqueRefereeIds = new Set(
-      filteredEvaluations.map((e) => e.referee_id),
+      countedEvaluations.map((e) => e.referee_id),
     );
 
     const avgRating =
       totalEvaluations > 0
         ? (
-            filteredEvaluations.reduce((sum, e) => sum + e.rating, 0) /
+            countedEvaluations.reduce((sum, e) => sum + e.rating, 0) /
             totalEvaluations
           ).toFixed(1)
         : 0;
 
     const maxRating =
       totalEvaluations > 0
-        ? Math.max(...filteredEvaluations.map((e) => e.rating))
+        ? Math.max(...countedEvaluations.map((e) => e.rating))
         : 0;
     const minRating =
       totalEvaluations > 0
-        ? Math.min(...filteredEvaluations.map((e) => e.rating))
+        ? Math.min(...countedEvaluations.map((e) => e.rating))
         : 0;
 
     const ratingDistribution = {
@@ -566,7 +623,7 @@ async function generateEvaluationsReport(
       "ضعيف (أقل من 60)": 0,
     };
 
-    filteredEvaluations.forEach((e) => {
+    countedEvaluations.forEach((e) => {
       if (e.rating >= 90) ratingDistribution["ممتاز (90-100)"]++;
       else if (e.rating >= 80) ratingDistribution["جيد جداً (80-89)"]++;
       else if (e.rating >= 70) ratingDistribution["جيد (70-79)"]++;
@@ -574,8 +631,11 @@ async function generateEvaluationsReport(
       else ratingDistribution["ضعيف (أقل من 60)"]++;
     });
 
+    // ✅ بناء إحصائيات الحكام
     const refereeStatsMap = new Map();
-    filteredEvaluations.forEach((e) => {
+
+    // أولاً: نبني الإحصائيات من countedEvaluations (للمتوسط والترتيب)
+    countedEvaluations.forEach((e) => {
       const refId = e.referee_id;
       if (!refereeStatsMap.has(refId)) {
         refereeStatsMap.set(refId, {
@@ -590,6 +650,8 @@ async function generateEvaluationsReport(
           min_rating: 100,
           roles: {},
           evaluations: [],
+          fourth_count: 0, // ✅ عدد تقييمات الرابع (للعرض بس)
+          fourth_evaluations: [], // ✅ تقييمات الرابع (للعرض بس)
         });
       }
 
@@ -614,22 +676,82 @@ async function generateEvaluationsReport(
       });
     });
 
+    // ✅ ثانياً: نضيف تقييمات الرابع للسجل الشخصي (لكن مش هتأثر على المتوسط)
+    allEvaluations
+      .filter((e) => e.referee_role === "fourth")
+      .forEach((e) => {
+        const refId = e.referee_id;
+        // لو الحكم مش موجود في الإحصائيات (يعني معندوش تقييمات كرئيسي/مساعد)
+        // نضيفه عشان يظهر في التقرير
+        if (!refereeStatsMap.has(refId)) {
+          refereeStatsMap.set(refId, {
+            referee_id: refId,
+            referee_name: e.referees?.full_name || "-",
+            region: e.referees?.region || "-",
+            job: e.referees?.job || "-",
+            degree: e.referees?.degree || "-",
+            total_rating: 0,
+            count: 0,
+            max_rating: 0,
+            min_rating: 100,
+            roles: {},
+            evaluations: [],
+            fourth_count: 0,
+            fourth_evaluations: [],
+          });
+        }
+
+        const entry = refereeStatsMap.get(refId);
+        entry.fourth_count = (entry.fourth_count || 0) + 1;
+        entry.fourth_evaluations.push({
+          match_id: e.match_id,
+          match_date: e.matches?.match_date,
+          home_team: e.matches?.home_team?.name,
+          away_team: e.matches?.away_team?.name,
+          competition: e.matches?.competitions?.name,
+          role: "fourth",
+          rating: e.rating,
+          notes: e.notes,
+        });
+        entry.roles["fourth"] = (entry.roles["fourth"] || 0) + 1;
+      });
+
+    // ✅ بناء الإحصائيات النهائية
     const refereeStats = Array.from(refereeStatsMap.values()).map((entry) => ({
       ...entry,
-      avg_rating: (entry.total_rating / entry.count).toFixed(1),
+      avg_rating:
+        entry.count > 0 ? (entry.total_rating / entry.count).toFixed(1) : "-", // ✅ لو معندوش تقييمات محسوبة
+      has_counted: entry.count > 0,
     }));
 
-    refereeStats.sort((a, b) => b.avg_rating - a.avg_rating);
+    // ✅ الترتيب: الحكام اللي عندهم تقييمات محسوبة بس، والباقي في الآخر
+    refereeStats.sort((a, b) => {
+      if (!a.has_counted && !b.has_counted) return 0;
+      if (!a.has_counted) return 1;
+      if (!b.has_counted) return -1;
+      return parseFloat(b.avg_rating) - parseFloat(a.avg_rating);
+    });
 
-    refereeStats.forEach((r, idx) => {
-      r.rank = idx + 1;
+    // ✅ إضافة الترتيب (للحكام اللي عندهم تقييمات محسوبة فقط)
+    let rankCounter = 1;
+    refereeStats.forEach((r) => {
+      if (r.has_counted) {
+        r.rank = rankCounter++;
+      } else {
+        r.rank = "-";
+      }
     });
 
     return {
       type: "evaluations",
-      data: filteredEvaluations,
+      data: allEvaluations, // ✅ كل التقييمات للعرض في الجدول السفلي
+      countedEvaluations: countedEvaluations, // ✅ التقييمات المحسوبة
       refereeStats: refereeStats,
-      totalEvaluations: totalEvaluations,
+      totalEvaluations: totalEvaluations, // ✅ العدد المحسوب
+      totalAllEvaluations: allEvaluations.length, // ✅ العدد الكلي
+      fourthEvaluations: allEvaluations.filter(
+        (e) => e.referee_role === "fourth",
+      ).length, // ✅ عدد تقييمات الرابع
       uniqueMatches: uniqueMatchIds.size,
       uniqueReferees: uniqueRefereeIds.size,
       avgRating: avgRating,
@@ -638,6 +760,9 @@ async function generateEvaluationsReport(
       ratingDistribution: ratingDistribution,
       minRatingFilter: minRatingFilter || "الكل",
       jobFilter: jobFilter || "الكل",
+      competitionFilter: competitionFilter || "",
+      competitionName:
+        allCompetitions.find((c) => c.id === competitionFilter)?.name || "الكل",
       dateFrom: dateFrom || "الكل",
       dateTo: dateTo || "الكل",
     };
@@ -951,6 +1076,8 @@ function renderReport(reportType, reportData) {
 // ============================================
 function renderEvaluationsReport(data) {
   const totalEvaluations = data?.totalEvaluations || 0;
+  const totalAllEvaluations = data?.totalAllEvaluations || 0;
+  const fourthEvaluations = data?.fourthEvaluations || 0;
   const uniqueMatches = data?.uniqueMatches || 0;
   const uniqueReferees = data?.uniqueReferees || 0;
   const avgRating = data?.avgRating || 0;
@@ -958,6 +1085,7 @@ function renderEvaluationsReport(data) {
   const minRating = data?.minRating || 0;
   const minRatingFilter = data?.minRatingFilter || "الكل";
   const jobFilter = data?.jobFilter || "الكل";
+  const competitionName = data?.competitionName || "الكل";
 
   const jobNames = {
     referee: "حكم",
@@ -983,6 +1111,9 @@ function renderEvaluationsReport(data) {
   };
 
   let activeFilters = "";
+  if (competitionName && competitionName !== "الكل") {
+    activeFilters += `<span class="badge bg-info me-1">🏆 ${competitionName}</span>`;
+  }
   if (jobFilter && jobFilter !== "الكل") {
     activeFilters += `<span class="badge bg-primary me-1">💼 ${jobNames[jobFilter] || jobFilter}</span>`;
   }
@@ -1001,23 +1132,29 @@ function renderEvaluationsReport(data) {
         : ""
     }
 
+    <!-- ✅ تنبيه مهم -->
+    <div class="alert alert-info mb-4">
+      <i class="fas fa-info-circle me-2"></i>
+      <strong>ملاحظة:</strong> تقييمات الحكم الرابع <strong>لا تُحسب</strong> في المتوسط العام أو الترتيب (لأن دوره مختلف عن الحكم الرئيسي)، لكنها <strong>تظهر في سجله الشخصي</strong>.
+    </div>
+
     <div class="row g-4 mb-4">
       <div class="col-md-3">
         <div class="stat-card">
           <div class="stat-number" style="font-size: 28px; color: #00c853;">${totalEvaluations}</div>
-          <div class="stat-label">⭐ إجمالي التقييمات</div>
+          <div class="stat-label">⭐ تقييمات محسوبة</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card">
+          <div class="stat-number" style="font-size: 28px; color: #9c27b0;">${fourthEvaluations}</div>
+          <div class="stat-label">🚩 تقييمات الحكم الرابع (غير محسوبة)</div>
         </div>
       </div>
       <div class="col-md-3">
         <div class="stat-card">
           <div class="stat-number" style="font-size: 28px; color: #2196f3;">${uniqueMatches}</div>
           <div class="stat-label">📊 مباريات مُقيَّمة</div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="stat-card">
-          <div class="stat-number" style="font-size: 28px; color: #9c27b0;">${uniqueReferees}</div>
-          <div class="stat-label">👤 حكام تم تقييمهم</div>
         </div>
       </div>
       <div class="col-md-3">
@@ -1032,13 +1169,13 @@ function renderEvaluationsReport(data) {
       <div class="col-md-6">
         <div class="stat-card">
           <div class="stat-number" style="font-size: 28px; color: #4caf50;">${maxRating}</div>
-          <div class="stat-label">🏆 أعلى تقييم</div>
+          <div class="stat-label">🏆 أعلى تقييم (محسوب)</div>
         </div>
       </div>
       <div class="col-md-6">
         <div class="stat-card">
           <div class="stat-number" style="font-size: 28px; color: #f44336;">${minRating}</div>
-          <div class="stat-label">📉 أقل تقييم</div>
+          <div class="stat-label">📉 أقل تقييم (محسوب)</div>
         </div>
       </div>
     </div>
@@ -1056,6 +1193,7 @@ function renderEvaluationsReport(data) {
       <h5 class="mb-3">
         <i class="fas fa-trophy me-2 text-warning"></i>
         ترتيب الحكام حسب متوسط التقييم
+        <small class="text-muted">(تقييمات الحكم الرابع غير محسوبة)</small>
       </h5>
       <table class="table table-hover">
         <thead>
@@ -1069,6 +1207,7 @@ function renderEvaluationsReport(data) {
             <th>متوسط التقييم</th>
             <th>أعلى تقييم</th>
             <th>أقل تقييم</th>
+            <th>رابع 🚩</th>
             <th>الإجراءات</th>
           </tr>
         </thead>
@@ -1079,7 +1218,8 @@ function renderEvaluationsReport(data) {
                   .map((ref) => {
                     const avg = parseFloat(ref.avg_rating);
                     let avgColor = "#4caf50";
-                    if (avg < 60) avgColor = "#f44336";
+                    if (isNaN(avg)) avgColor = "#9e9e9e";
+                    else if (avg < 60) avgColor = "#f44336";
                     else if (avg < 70) avgColor = "#ff9800";
                     else if (avg < 80) avgColor = "#ffc107";
                     else if (avg < 90) avgColor = "#2196f3";
@@ -1091,7 +1231,9 @@ function renderEvaluationsReport(data) {
                           ? '<span class="badge bg-secondary">🥈 2</span>'
                           : ref.rank === 3
                             ? '<span class="badge bg-danger">🥉 3</span>'
-                            : `<span class="badge bg-light text-dark">${ref.rank}</span>`;
+                            : ref.rank === "-"
+                              ? '<span class="badge bg-light text-muted">-</span>'
+                              : `<span class="badge bg-light text-dark">${ref.rank}</span>`;
 
                     return `
                 <tr>
@@ -1106,8 +1248,15 @@ function renderEvaluationsReport(data) {
                       ${ref.avg_rating}
                     </span>
                   </td>
-                  <td class="text-success"><strong>${ref.max_rating}</strong></td>
-                  <td class="text-danger"><strong>${ref.min_rating}</strong></td>
+                  <td class="text-success"><strong>${ref.has_counted ? ref.max_rating : "-"}</strong></td>
+                  <td class="text-danger"><strong>${ref.has_counted ? ref.min_rating : "-"}</strong></td>
+                  <td>
+                    ${
+                      ref.fourth_count > 0
+                        ? `<span class="badge bg-secondary">🚩 ${ref.fourth_count}</span>`
+                        : `<span class="text-muted">0</span>`
+                    }
+                  </td>
                   <td>
                     <button class="btn btn-sm btn-outline-primary view-referee-eval-report" data-id="${ref.referee_id}">
                       <i class="fas fa-eye"></i> عرض
@@ -1119,7 +1268,7 @@ function renderEvaluationsReport(data) {
                   .join("")
               : `
             <tr>
-              <td colspan="10" class="text-center text-muted">لا توجد تقييمات في هذه الفترة</td>
+              <td colspan="11" class="text-center text-muted">لا توجد تقييمات في هذه الفترة</td>
             </tr>
           `
           }
@@ -1131,6 +1280,7 @@ function renderEvaluationsReport(data) {
       <h5 class="mb-3">
         <i class="fas fa-list me-2"></i>
         جميع التقييمات
+        <small class="text-muted">(بما فيها تقييمات الحكم الرابع)</small>
       </h5>
       <table class="table table-sm table-hover">
         <thead>
@@ -1157,8 +1307,10 @@ function renderEvaluationsReport(data) {
                     else if (rating < 80) ratingColor = "bg-info";
                     else if (rating < 90) ratingColor = "bg-primary";
 
+                    const isFourth = e.referee_role === "fourth";
+
                     return `
-                <tr>
+                <tr class="${isFourth ? "table-secondary" : ""}">
                   <td>${new Date(e.matches?.match_date).toLocaleDateString("ar-EG")}</td>
                   <td>
                     <strong>${e.matches?.home_team?.name || "-"}</strong>
@@ -1167,8 +1319,18 @@ function renderEvaluationsReport(data) {
                   </td>
                   <td>${e.matches?.competitions?.name || "-"}</td>
                   <td>${e.referees?.full_name || "-"}</td>
-                  <td><span class="badge bg-secondary">${roleNames[e.referee_role] || e.referee_role || "-"}</span></td>
-                  <td><span class="badge ${ratingColor}" style="font-size: 0.9rem;">${rating}</span></td>
+                  <td>
+                    <span class="badge ${isFourth ? "bg-secondary" : "bg-secondary"}">
+                      ${roleNames[e.referee_role] || e.referee_role || "-"}
+                      ${isFourth ? " 🚩" : ""}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="badge ${ratingColor}" style="font-size: 0.9rem;">
+                      ${rating}
+                    </span>
+                    ${isFourth ? '<small class="text-muted d-block">(غير محسوب)</small>' : ""}
+                  </td>
                   <td>${e.notes ? (e.notes.length > 30 ? e.notes.substring(0, 28) + "…" : e.notes) : "-"}</td>
                 </tr>
               `;
@@ -1182,13 +1344,17 @@ function renderEvaluationsReport(data) {
           }
         </tbody>
       </table>
-      ${data.data && data.data.length > 50 ? `<p class="text-muted text-center">عرض أول 50 تقييم من أصل ${data.data.length}</p>` : ""}
+      ${
+        data.data && data.data.length > 50
+          ? `<p class="text-muted text-center">عرض أول 50 تقييم من أصل ${data.data.length}</p>`
+          : ""
+      }
     </div>
   `;
 }
 
 // ============================================
-// ✅ NEW: View referee evaluations details
+// ✅ View referee evaluations details
 // ============================================
 async function viewRefereeEvaluationsDetails(refereeId, reportData) {
   try {
@@ -1209,35 +1375,58 @@ async function viewRefereeEvaluationsDetails(refereeId, reportData) {
       main: "رئيسي",
       assistant1: "مساعد أول",
       assistant2: "مساعد ثاني",
-      fourth: "رابع",
+      fourth: "رابع 🚩 (غير محسوب)",
       var: "VAR",
       avar: "AVAR",
     };
+
+    // ✅ دمج التقييمات العادية + تقييمات الرابع
+    const allRefereeEvaluations = [
+      ...(refereeStat.evaluations || []),
+      ...(refereeStat.fourth_evaluations || []),
+    ].sort((a, b) => new Date(b.match_date) - new Date(a.match_date));
 
     Swal.fire({
       title: `تقييمات الحكم: ${refereeStat.referee_name}`,
       html: `
         <div style="text-align: right; direction: rtl; max-height: 70vh; overflow-y: auto;">
           <div class="row mb-3">
-            <div class="col-md-4">
+            <div class="col-md-3">
               <div class="stat-card">
                 <div class="stat-number" style="font-size: 24px; color: #00c853;">${refereeStat.count}</div>
-                <div class="stat-label" style="font-size: 12px;">عدد التقييمات</div>
+                <div class="stat-label" style="font-size: 11px;">تقييمات محسوبة</div>
               </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
+              <div class="stat-card">
+                <div class="stat-number" style="font-size: 24px; color: #9c27b0;">${refereeStat.fourth_count || 0}</div>
+                <div class="stat-label" style="font-size: 11px;">تقييمات كرابع</div>
+              </div>
+            </div>
+            <div class="col-md-3">
               <div class="stat-card">
                 <div class="stat-number" style="font-size: 24px; color: #ff9800;">${refereeStat.avg_rating}</div>
-                <div class="stat-label" style="font-size: 12px;">متوسط التقييم</div>
+                <div class="stat-label" style="font-size: 11px;">متوسط التقييم</div>
               </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
               <div class="stat-card">
-                <div class="stat-number" style="font-size: 24px; color: #2196f3;">#${refereeStat.rank}</div>
-                <div class="stat-label" style="font-size: 12px;">الترتيب</div>
+                <div class="stat-number" style="font-size: 24px; color: #2196f3;">${refereeStat.rank || "-"}</div>
+                <div class="stat-label" style="font-size: 11px;">الترتيب</div>
               </div>
             </div>
           </div>
+
+          ${
+            refereeStat.fourth_count > 0
+              ? `
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle me-2"></i>
+              <strong>ملاحظة:</strong> الحكم عنده <strong>${refereeStat.fourth_count}</strong> تقييم كحكم رابع، لكن <strong>مش محسوبين</strong> في المتوسط أو الترتيب.
+            </div>
+          `
+              : ""
+          }
 
           <hr>
 
@@ -1254,28 +1443,45 @@ async function viewRefereeEvaluationsDetails(refereeId, reportData) {
               </tr>
             </thead>
             <tbody>
-              ${refereeStat.evaluations
-                .sort((a, b) => new Date(b.match_date) - new Date(a.match_date))
-                .map((e) => {
-                  const rating = e.rating;
-                  let ratingColor = "bg-success";
-                  if (rating < 60) ratingColor = "bg-danger";
-                  else if (rating < 70) ratingColor = "bg-warning text-dark";
-                  else if (rating < 80) ratingColor = "bg-info";
-                  else if (rating < 90) ratingColor = "bg-primary";
+              ${
+                allRefereeEvaluations.length > 0
+                  ? allRefereeEvaluations
+                      .map((e) => {
+                        const rating = e.rating;
+                        let ratingColor = "bg-success";
+                        if (rating < 60) ratingColor = "bg-danger";
+                        else if (rating < 70)
+                          ratingColor = "bg-warning text-dark";
+                        else if (rating < 80) ratingColor = "bg-info";
+                        else if (rating < 90) ratingColor = "bg-primary";
 
-                  return `
-                  <tr>
+                        const isFourth = e.role === "fourth";
+
+                        return `
+                  <tr class="${isFourth ? "table-secondary" : ""}">
                     <td>${new Date(e.match_date).toLocaleDateString("ar-EG")}</td>
                     <td>${e.home_team || "-"} × ${e.away_team || "-"}</td>
                     <td>${e.competition || "-"}</td>
-                    <td><span class="badge bg-secondary">${roleNames[e.role] || e.role}</span></td>
-                    <td><span class="badge ${ratingColor}">${rating}</span></td>
+                    <td>
+                      <span class="badge ${isFourth ? "bg-secondary" : "bg-primary"}">
+                        ${roleNames[e.role] || e.role}
+                      </span>
+                    </td>
+                    <td>
+                      <span class="badge ${ratingColor}">${rating}</span>
+                      ${isFourth ? '<small class="text-muted d-block" style="font-size: 9px;">غير محسوب</small>' : ""}
+                    </td>
                     <td>${e.notes || "-"}</td>
                   </tr>
                 `;
-                })
-                .join("")}
+                      })
+                      .join("")
+                  : `
+                <tr>
+                  <td colspan="6" class="text-center text-muted">لا توجد تقييمات</td>
+                </tr>
+              `
+              }
             </tbody>
           </table>
         </div>
@@ -2313,7 +2519,7 @@ async function viewRefereeDetails(id) {
 }
 
 // ============================================
-// ✅ Initialize report charts - مع شارتات التقييمات
+// ✅ Initialize report charts
 // ============================================
 function initReportCharts(reportType, data) {
   reportCharts.forEach((chart) => chart.destroy());
@@ -2661,7 +2867,7 @@ function exportReportPdf() {
   }
 }
 
-// ✅ إظهار/إخفاء فلاتر الحكام حسب نوع التقرير
+// ✅ إظهار/إخفاء الفلاتر حسب نوع التقرير
 function toggleReportFilters() {
   const reportType = document.getElementById("reportType").value;
   const regionContainer = document.getElementById("regionFilterContainer");
@@ -2669,25 +2875,33 @@ function toggleReportFilters() {
   const minRatingContainer = document.getElementById(
     "minRatingFilterContainer",
   );
+  const competitionContainer = document.getElementById(
+    "competitionFilterContainer",
+  ); // ✅ جديد
 
   if (reportType === "referees") {
     regionContainer.style.display = "block";
     jobContainer.style.display = "block";
     minRatingContainer.style.display = "none";
+    competitionContainer.style.display = "none";
     document.getElementById("reportFilterMinRating").value = "";
+    document.getElementById("reportFilterCompetition").value = "";
   } else if (reportType === "evaluations") {
-    // ✅ تقرير التقييمات: يظهر فلتر الوظيفة + الحد الأدنى للتقييم
+    // ✅ تقرير التقييمات: يظهر فلتر المسابقة + الوظيفة + الحد الأدنى للتقييم
     regionContainer.style.display = "none";
     jobContainer.style.display = "block";
     minRatingContainer.style.display = "block";
+    competitionContainer.style.display = "block";
     document.getElementById("reportFilterRegion").value = "";
   } else {
     regionContainer.style.display = "none";
     jobContainer.style.display = "none";
     minRatingContainer.style.display = "none";
+    competitionContainer.style.display = "none";
     document.getElementById("reportFilterRegion").value = "";
     document.getElementById("reportFilterJob").value = "";
     document.getElementById("reportFilterMinRating").value = "";
+    document.getElementById("reportFilterCompetition").value = "";
   }
 }
 

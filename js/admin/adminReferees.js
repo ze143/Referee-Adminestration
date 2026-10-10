@@ -677,11 +677,19 @@ async function viewRefereeDetails(id) {
 
     const evaluationsList = evaluations || [];
 
-    // ✅ حساب المتوسط
+    // ✅ التعديل: فصل تقييمات الحكم الرابع
+    const countedEvaluations = evaluationsList.filter(
+      (e) => e.referee_role !== "fourth",
+    );
+    const fourthEvaluations = evaluationsList.filter(
+      (e) => e.referee_role === "fourth",
+    );
+
+    // ✅ حساب المتوسط من التقييمات المحسوبة بس
     let averageRating = "-";
-    if (evaluationsList.length > 0) {
-      const sum = evaluationsList.reduce((acc, e) => acc + e.rating, 0);
-      averageRating = (sum / evaluationsList.length).toFixed(1);
+    if (countedEvaluations.length > 0) {
+      const sum = countedEvaluations.reduce((acc, e) => acc + e.rating, 0);
+      averageRating = (sum / countedEvaluations.length).toFixed(1);
     }
 
     // 2. جلب جميع مباريات الحكم (جميع الأدوار)
@@ -798,27 +806,48 @@ async function viewRefereeDetails(id) {
   <h5 class="mb-3 mt-4">
     <i class="fas fa-star me-2 text-warning"></i>
     التقييمات
-    ${evaluationsList.length > 0 ? `<span class="badge bg-warning text-dark ms-2">${evaluationsList.length}</span>` : ""}
+    ${
+      evaluationsList.length > 0
+        ? `<span class="badge bg-warning text-dark ms-2">${evaluationsList.length}</span>`
+        : ""
+    }
   </h5>
 `;
 
     if (evaluationsList.length > 0) {
       evaluationsSection += `
     <div class="row g-3 mb-4">
-      <div class="col-md-6">
+      <div class="col-md-3">
         <div class="stat-card" style="border: 2px solid #ffc107;">
           <div class="stat-number" style="font-size: 32px; color: #ffc107;">
             ${averageRating}
           </div>
-          <div class="stat-label">⭐ متوسط التقييم (من 100)</div>
+          <div class="stat-label">⭐ متوسط التقييم (محسوب)</div>
+          <small class="text-muted">بدون تقييمات الحكم الرابع</small>
         </div>
       </div>
-      <div class="col-md-6">
+      <div class="col-md-3">
         <div class="stat-card">
           <div class="stat-number" style="font-size: 32px; color: #2196f3;">
+            ${countedEvaluations.length}
+          </div>
+          <div class="stat-label">📊 تقييمات محسوبة</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card" style="border: 2px solid #9e9e9e;">
+          <div class="stat-number" style="font-size: 32px; color: #9e9e9e;">
+            ${fourthEvaluations.length}
+          </div>
+          <div class="stat-label">🚩 تقييمات كرابع (غير محسوبة)</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card">
+          <div class="stat-number" style="font-size: 32px; color: #00c853;">
             ${evaluationsList.length}
           </div>
-          <div class="stat-label">📊 عدد التقييمات</div>
+          <div class="stat-label">📋 إجمالي التقييمات</div>
         </div>
       </div>
     </div>
@@ -833,14 +862,16 @@ async function viewRefereeDetails(id) {
             <th>التاريخ</th>
             <th>الدور</th>
             <th>التقييم</th>
+            <th>الحالة</th>
           </tr>
         </thead>
         <tbody>
           ${evaluationsList
             .slice(0, 5)
-            .map(
-              (e) => `
-              <tr>
+            .map((e) => {
+              const isFourth = e.referee_role === "fourth";
+              return `
+              <tr class="${isFourth ? "table-secondary" : ""}">
                 <td>
                   ${e.matches?.home_team?.name || "-"} ×
                   ${e.matches?.away_team?.name || "-"}
@@ -865,7 +896,7 @@ async function viewRefereeDetails(id) {
                           : e.referee_role === "assistant2"
                             ? "مساعد 2"
                             : e.referee_role === "fourth"
-                              ? "رابع"
+                              ? "رابع 🚩"
                               : e.referee_role === "var"
                                 ? "VAR"
                                 : "AVAR"
@@ -876,9 +907,16 @@ async function viewRefereeDetails(id) {
                   <strong style="color: #ffc107; font-size: 1.1rem;">${e.rating}</strong>
                   <small class="text-muted">/ 100</small>
                 </td>
+                <td>
+                  ${
+                    isFourth
+                      ? '<span class="badge bg-secondary">غير محسوب</span>'
+                      : '<span class="badge bg-success">محسوب</span>'
+                  }
+                </td>
               </tr>
-            `,
-            )
+            `;
+            })
             .join("")}
         </tbody>
       </table>
